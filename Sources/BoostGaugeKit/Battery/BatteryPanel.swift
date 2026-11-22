@@ -19,7 +19,9 @@ struct BatteryLabel: View {
 
     var body: some View {
         let content = model.labelContent
-        let tint: BatteryTint = content?.lowPower == true ? .lowPower(dark: scheme == .dark) : .template
+        let tint = content.map {
+            BatteryIcon.tint(percent: $0.percent, glyph: $0.glyph, lowPower: $0.lowPower, dark: scheme == .dark)
+        } ?? .template
         Image(nsImage: BatteryIcon.label(percent: content?.percent ?? 0, glyph: content?.glyph ?? .none,
                                          showPercentage: settings.showBatteryPercentage && content != nil, tint: tint))
             .renderingMode(tint == .template ? .template : .original)

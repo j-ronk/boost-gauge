@@ -296,6 +296,9 @@ struct EnergyUser: Identifiable {
         variants.append(RenderVariant("levels-low-power", label: AnyView(BatterySamples.LevelStrip(lowPower: true)), panel: nil))
         variants.append(RenderVariant("levels-low-power-no-percent",
                                       label: AnyView(BatterySamples.LevelStrip(showPercentage: false, lowPower: true)), panel: nil))
+        variants.append(RenderVariant("levels-low-battery", label: AnyView(BatterySamples.LowBatteryStrip()), panel: nil))
+        variants.append(RenderVariant("levels-low-battery-no-percent",
+                                      label: AnyView(BatterySamples.LowBatteryStrip(showPercentage: false)), panel: nil))
         variants.append(RenderVariant("sf-symbols", label: AnyView(BatterySamples.SFSymbolStrip()), panel: nil))
         return variants
     }

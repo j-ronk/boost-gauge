@@ -58,6 +58,62 @@ struct LowPowerIconTests {
 }
 
 @MainActor
+struct LowBatteryIconTests {
+    private func tint(_ percent: Int, _ glyph: BatteryGlyph, lowPower: Bool = false) -> BatteryTint {
+        BatteryIcon.tint(percent: percent, glyph: glyph, lowPower: lowPower, dark: false)
+    }
+
+    @Test func redAtTheThresholdOrBelowOnBattery() {
+        #expect(BatteryIcon.lowBatteryPercent == 10)
+        #expect(tint(11, .none) == .template)
+        #expect(tint(10, .none) == .lowBattery(dark: false))
+        #expect(tint(3, .none) == .lowBattery(dark: false))
+    }
+
+    @Test func chargingOrOnACStaysNormalWithTheBolt() {
+        // Charging, charged, on hold and draining on AC all carry the bolt.
+        for state in [ChargeState.charging(nil), .onHold, .notCharging, .drainingOnAC, .charged] {
+            let glyph = BatteryIcon.glyph(for: state)
+            #expect(glyph == .bolt)
+            #expect(tint(8, glyph) == .template)
+        }
+    }
+
+    @Test func lowPowerYellowWinsOverRed() {
+        #expect(tint(8, .none, lowPower: true) == .lowPower(dark: false))
+    }
+
+    @Test func redChargeKeepsTheYellowInkTreatment() {
+        for dark in [true, false] {
+            for percent in [10, 3] {
+                let pixels = RGBA(BatteryIcon.label(percent: 50, glyph: .none, showPercentage: false,
+                                                    tint: .lowBattery(dark: dark)))
+                let body = BatteryIcon.bodyRect
+                let charge = pixels.at(body.minX + 3, body.midY)
+                let empty = pixels.at(body.maxX - 3, body.midY)
+                let terminal = pixels.at(body.maxX + 1.6, body.midY)
+                #expect(charge.isRed, "charge \(charge) dark \(dark)")
+                #expect(charge.a > 0.95)
+                for part in [empty, terminal] {
+                    #expect(part.isNeutral, "\(part) dark \(dark)")
+                    #expect(part.a > 0.2 && part.a < 0.6, "\(part) dark \(dark)")
+                }
+            }
+        }
+        #expect(!BatteryIcon.label(percent: 8, glyph: .none, showPercentage: true, tint: .lowBattery(dark: true)).isTemplate)
+    }
+
+    @Test func numberStaysCutOutOfTheRedFill() {
+        for dark in [true, false] {
+            let plain = Alpha(BatteryIcon.label(percent: 8, glyph: .none, showPercentage: true))
+            let red = Alpha(BatteryIcon.label(percent: 8, glyph: .none, showPercentage: true, tint: .lowBattery(dark: dark)))
+            let mismatched = zip(plain.values, red.values).filter { min($0, $1) == 0 && max($0, $1) > 25 }.count
+            #expect(mismatched == 0)
+        }
+    }
+}
+
+@MainActor
 struct LowPowerMonitorTests {
     @Test func readsAtStartAndOnTheNotification() async throws {
         let fake = FakeLowPower()
@@ -136,6 +192,7 @@ struct RGBA {
     struct Pixel: CustomStringConvertible {
         let r, g, b, a: CGFloat
         var isYellow: Bool { r > 0.85 && g > 0.65 && b < 0.3 }
+        var isRed: Bool { r > 0.85 && g < 0.35 && b < 0.4 }
         var isNeutral: Bool { abs(r - g) < 0.05 && abs(g - b) < 0.05 }
         var description: String { String(format: "(%.2f %.2f %.2f a%.2f)", r, g, b, a) }
     }

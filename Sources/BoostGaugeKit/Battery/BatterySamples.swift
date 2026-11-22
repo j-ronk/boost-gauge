@@ -268,6 +268,24 @@ import SwiftUI
         }
     }
 
+    /// The low-battery cases: 11% normal, 10% and 3% red, charging and on hold at 8% normal with the bolt,
+    /// Low Power at 8% yellow.
+    struct LowBatteryStrip: View {
+        var showPercentage = true
+        @Environment(\.colorScheme) private var scheme
+        var body: some View {
+            let cases: [(Int, BatteryGlyph, Bool)] = [(11, .none, false), (10, .none, false), (3, .none, false),
+                                                      (8, .bolt, false), (8, .none, true)]
+            HStack(spacing: 10) {
+                ForEach(Array(cases.enumerated()), id: \.offset) { _, c in
+                    let tint = BatteryIcon.tint(percent: c.0, glyph: c.1, lowPower: c.2, dark: scheme == .dark)
+                    Image(nsImage: BatteryIcon.label(percent: c.0, glyph: c.1, showPercentage: showPercentage, tint: tint))
+                        .renderingMode(tint == .template ? .template : .original)
+                }
+            }
+        }
+    }
+
     /// The stepped SF Symbol batteries at the same scale, for comparison with the hand-drawn icon.
     struct SFSymbolStrip: View {
         var body: some View {

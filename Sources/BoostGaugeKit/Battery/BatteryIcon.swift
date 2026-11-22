@@ -9,6 +9,8 @@ enum BatteryTint: Hashable {
     /// Yellow charge, as the system shows in Low Power Mode. A template image can't carry colour, so the rest is
     /// drawn in the menu bar's label colour for the appearance the label sits on.
     case lowPower(dark: Bool)
+    /// Red charge, as the system shows at a low level on battery. Drawn like `lowPower`, in red.
+    case lowBattery(dark: Bool)
 }
 
 /// The macOS 26 menu bar battery, drawn by hand so the fill tracks the exact percent
@@ -45,6 +47,17 @@ enum BatteryIcon {
         static let smallGlyphInset: CGFloat = 1
         static let smallGlyphGap: CGFloat = 1
         static var iconWidth: CGFloat { (body.width + nubGap + nub.width).rounded(.up) }
+    }
+
+    /// The native icon turns red with the low-battery warning; Apple doesn't document the level, so this is
+    /// an observed ~10%. Confirm against the native icon.
+    static let lowBatteryPercent = 10
+
+    /// Low Power yellow wins over red; red only on battery (`glyph` is `.none` exactly when unplugged).
+    static func tint(percent: Int, glyph: BatteryGlyph, lowPower: Bool, dark: Bool) -> BatteryTint {
+        if lowPower { return .lowPower(dark: dark) }
+        if glyph == .none, percent <= lowBatteryPercent { return .lowBattery(dark: dark) }
+        return .template
     }
 
     /// Where the body sits in the label image, in points.
@@ -94,13 +107,20 @@ enum BatteryIcon {
                 ink = .black
             case .lowPower(let dark):
                 ink = labelColor(dark: dark)
-                // systemYellow is dynamic; pin it to the appearance the label sits on, not the app's.
-                var yellow = NSColor.systemYellow
-                NSAppearance(named: dark ? .darkAqua : .aqua)?.performAsCurrentDrawingAppearance {
-                    yellow = NSColor.systemYellow.usingColorSpace(.sRGB) ?? .systemYellow
-                }
-                charge = yellow
+                charge = Self.pinned(.systemYellow, dark: dark)
+            case .lowBattery(let dark):
+                ink = labelColor(dark: dark)
+                charge = Self.pinned(.systemRed, dark: dark)
             }
+        }
+
+        /// System colours are dynamic; pin one to the appearance the label sits on, not the app's.
+        private static func pinned(_ color: NSColor, dark: Bool) -> NSColor {
+            var resolved = color
+            NSAppearance(named: dark ? .darkAqua : .aqua)?.performAsCurrentDrawingAppearance {
+                resolved = color.usingColorSpace(.sRGB) ?? color
+            }
+            return resolved
         }
     }
 
