@@ -89,4 +89,52 @@ struct CPUItemTests {
         item.model.total = 21.4
         #expect(item.model.labelValue == "21%")
     }
+
+    @Test func detailsShowCPUAverageHottestSensorAndCoreSplit() {
+        let suite = TestDefaults()
+        let ctx = makeContext(suite)
+        let item = CPUItem(ctx, readTicks: { nil }, readTemperatures: {
+            SensorSummary.summarize([("Tp01", 60), ("Tp05", 70), ("Tg05", 90)])
+        }, kinds: CPULoad.coreKinds(performance: 6, efficiency: 4))
+        item.refreshDetails()
+        #expect(item.model.temperatureText == "65°C")
+        // The GPU sensor is hotter but isn't a CPU sensor.
+        #expect(item.model.hottestSensorText == "70°C")
+        #expect(item.model.coresText == "4 Efficiency · 6 Performance")
+
+        ctx.settings.temperatureUnit = .fahrenheit
+        item.refreshDetails()
+        #expect(item.model.temperatureText == "149°F")
+    }
+
+    @Test func hiddenDetailsSkipTheSensorRead() {
+        let suite = TestDefaults()
+        let ctx = makeContext(suite)
+        var reads = 0
+        let item = CPUItem(ctx, readTicks: { nil }, readTemperatures: { reads += 1; return TempSummary(cpu: 50, cpuHottest: 55) })
+        ctx.settings.setSectionShown(.cpuDetails, false)
+        item.refreshDetails()
+        #expect(reads == 0)
+        #expect(item.model.temperatureText == "—")
+        ctx.settings.setSectionShown(.cpuDetails, true)
+        item.refreshDetails()
+        #expect(reads == 1)
+        #expect(item.model.temperatureText == "50°C")
+    }
+
+    @Test func hiddenTopProcessesSampleNothing() async {
+        let suite = TestDefaults()
+        let ctx = makeContext(suite)
+        let item = CPUItem(ctx, readTicks: { nil })
+        ctx.settings.setSectionShown(.cpuTopProcesses, false)
+        item.model.topProcesses = []
+        await item.refreshTop()
+        #expect(item.model.topProcesses == nil)
+    }
+
+    @Test func coresTextWithoutAPerformanceSplit() {
+        #expect(CPUCores.text(efficiency: 4, performance: 6) == "4 Efficiency · 6 Performance")
+        #expect(CPUCores.text(efficiency: 0, performance: 8) == "8")
+        #expect(CPUCores.text(efficiency: 0, performance: 0) == "—")
+    }
 }

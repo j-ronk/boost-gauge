@@ -47,8 +47,10 @@ struct CapsulePicker<Value: Hashable>: View {
         }
     }
 
+    func isSelected(_ option: Option) -> Bool { option.value == selection }
+
     private func segment(_ option: Option) -> some View {
-        let selected = option.value == selection
+        let selected = isSelected(option)
         let tinted = selected && option.tint != nil
         return Button {
             selection = option.value

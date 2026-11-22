@@ -58,6 +58,14 @@ struct SensorSummaryTests {
         #expect(s.hottest == 64)
     }
 
+    @Test func cpuHottestIsTheHottestCPUSensorOnly() {
+        let s = SensorSummary.summarize([("Tp01", 61), ("Tp05", 74.5), ("Tp09", 0), ("Tg05", 88), ("TB1T", 30)])
+        #expect(s.cpu == (61 + 74.5) / 2)
+        #expect(s.cpuHottest == 74.5)
+        #expect(s.hottest == 88)
+        #expect(SensorSummary.summarize([("Tg05", 50)]).cpuHottest == nil)
+    }
+
     @Test func emptyGivesNilHottest() {
         #expect(SensorSummary.summarize([]) == TempSummary(cpu: nil, gpu: nil, battery: nil, hottest: nil))
     }
