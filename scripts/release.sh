@@ -36,7 +36,7 @@ derived="$out/DerivedData"
 app="$derived/Build/Products/Release/Vitals.app"
 zip="$out/Vitals-$version.zip"
 
-/bin/rm -rf "$out"
+rm -rf "$out"
 mkdir -p "$out"
 
 # --- Build. Command-line settings override project.yml for every target, including the embedded
@@ -75,7 +75,9 @@ check_signed() {
   grep -qx "TeamIdentifier=$team" <<<"$info" || fail "$1 is not signed by team $team"
   grep -q '^Timestamp=' <<<"$info" || fail "$1 has no secure timestamp"
   grep -Eq '^CodeDirectory .*flags=0x[0-9a-f]*\(.*runtime' <<<"$info" || fail "$1 is missing the hardened runtime"
-  if codesign -d --entitlements - --xml "$1" 2>/dev/null | grep -q 'get-task-allow'; then
+  local ents
+  ents=$(codesign -d --entitlements - --xml "$1" 2>/dev/null || true)
+  if grep -q 'get-task-allow' <<<"$ents"; then
     fail "$1 has the get-task-allow entitlement, which notarisation rejects"
   fi
   echo "  signed ok: ${1#"$derived/Build/Products/Release/"}"
@@ -106,16 +108,24 @@ if [ "$sub_state" != "Accepted" ]; then
   if [ "$sub_id" != "-" ]; then xcrun notarytool log "$sub_id" --keychain-profile "$profile" >&2 || true; fi
   fail "notarisation failed"
 fi
-echo "  notarised: submission $sub_id"
+echo "  notarised: submission $sub_id (check later with: xcrun notarytool info $sub_id --keychain-profile $profile)"
 
+# The ticket can take a minute or two to reach Apple's CDN after Accepted, so retry before failing.
+i=0
+until xcrun stapler staple "$app" >/dev/null 2>&1 || [ $i -ge 8 ]; do sleep 15; i=$((i + 1)); done
 xcrun stapler staple "$app"
 xcrun stapler validate "$app"
-/bin/rm -f "$zip"
+rm -f "$zip"
 ditto -c -k --keepParent "$app" "$zip"
 
-assessment=$(spctl -a -vv -t exec "$app" 2>&1) || { echo "$assessment" >&2; fail "spctl rejected the stapled app"; }
+# Check what ships: unpack the final zip and assess that copy, not the build output.
+unpacked="$out/verify"
+ditto -x -k "$zip" "$unpacked"
+xcrun stapler validate "$unpacked/Vitals.app"
+assessment=$(spctl -a -vv -t exec "$unpacked/Vitals.app" 2>&1) || { echo "$assessment" >&2; fail "spctl rejected the app in the zip"; }
 echo "$assessment" | sed 's/^/  /'
 grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the app but not as Notarized Developer ID"
+rm -rf "$unpacked"
 
 # --- Hand over. Not run here: publishing is the maintainer's call.
 sha=$(shasum -a 256 "$zip" | awk '{print $1}')
