@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 import Observation
 import Testing
 @testable import BoostGaugeKit
@@ -14,6 +15,26 @@ struct BatteryItemTests {
         item.tick(now: .now)
         try await Task.sleep(for: .milliseconds(100))
         #expect(!FileManager.default.fileExists(atPath: tmp.url.path))
+    }
+
+    /// `--render` ticks items but never opens a panel, so a pack read gated on the panel left Temperature at "—".
+    @Test(.enabled(if: BatteryItemTests.packTemperatureExposed))
+    func tickReadsTemperatureWithoutAnOpenPanel() {
+        let suite = TestDefaults()
+        let ctx = AppContext(settings: AppSettings(defaults: suite.defaults), powerSource: PowerSourceMonitor(initial: .adapter))
+        let item = BatteryItem(ctx, historyURL: TempHistory().url, recordsHistory: false)
+        item.tick(now: .now)
+        #expect(item.model.snapshot?.temperatureC != nil)
+    }
+
+    /// Desktops and CI runners have no battery pack.
+    nonisolated static var packTemperatureExposed: Bool {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBatteryPack"))
+        guard service != IO_OBJECT_NULL else { return false }
+        defer { IOObjectRelease(service) }
+        let data = IORegistryEntryCreateCFProperty(service, "BatteryData" as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? [String: Any]
+        return data?["Temperature"] != nil || data?["VirtualTemperature"] != nil
     }
 
     @Test func recordsHistoryWritesSamples() async throws {

@@ -31,7 +31,7 @@ import SwiftUI
     public var panel: AnyView { AnyView(PowerPanel(model: model)) }
 
     public func tick(now: Date) {
-        if let s = BatteryReader.read(includePack: false) {
+        if let s = BatteryReader.read() {
             model.snapshot = s
             model.history.add(s, at: now)
         }

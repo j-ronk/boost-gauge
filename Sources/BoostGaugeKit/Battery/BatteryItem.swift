@@ -7,7 +7,7 @@ import SwiftUI
 /// Reads the live battery in-process. Battery and Power tick on the same scheduler beat,
 /// so a reading taken moments ago is shared instead of hitting IOKit twice.
 @MainActor enum BatteryReader {
-    private static var last: (date: Date, withPack: Bool, snapshot: BatterySnapshot)?
+    private static var last: (date: Date, snapshot: BatterySnapshot)?
 
     // Only what the parser uses: the full AppleSmartBattery dictionary drags in tens of KB of IOReport legends.
     private static let smartBatteryKeys = [
@@ -16,13 +16,14 @@ import SwiftUI
     ]
 
     /// `fresh` skips the shared reading, for events (plug, panel open) that may have just changed it.
-    static func read(includePack: Bool, now: Date = .now, fresh: Bool = false) -> BatterySnapshot? {
-        if !fresh, let last, now.timeIntervalSince(last.date) < 0.5, last.withPack || !includePack { return last.snapshot }
+    static func read(now: Date = .now, fresh: Bool = false) -> BatterySnapshot? {
+        if !fresh, let last, now.timeIntervalSince(last.date) < 0.5 { return last.snapshot }
         guard let iops = powerSource() else { return nil }
         let smartBattery = properties(ofClass: "AppleSmartBattery", keys: smartBatteryKeys)
-        let pack = includePack ? properties(ofClass: "AppleSmartBatteryPack", keys: ["BatteryData"]) : nil
+        // Read every time (about 0.1 ms): gating it on the open panel left Temperature blank in `--render`.
+        let pack = properties(ofClass: "AppleSmartBatteryPack", keys: ["BatteryData"])
         let snapshot = BatteryParser.parse(iops: iops, smartBattery: smartBattery, pack: pack)
-        last = (now, includePack, snapshot)
+        last = (now, snapshot)
         return snapshot
     }
 
@@ -164,7 +165,7 @@ struct EnergyUser: Identifiable {
     }
 
     private func read(now: Date, fresh: Bool) {
-        if let s = BatteryReader.read(includePack: panelOpen, now: now, fresh: fresh) {
+        if let s = BatteryReader.read(now: now, fresh: fresh) {
             model.snapshot = s
             model.powerHistory.add(s, at: now)
         }
@@ -218,7 +219,7 @@ struct EnergyUser: Identifiable {
     }
 
     private func recordSample(now: Date) {
-        guard let s = BatteryReader.read(includePack: false, now: now) else { return }
+        guard let s = BatteryReader.read(now: now) else { return }
         var charging = false
         if case .charging = ChargeState.classify(s) { charging = true }
         store.append(ChargeSample(date: now, percent: s.percent, charging: charging))
