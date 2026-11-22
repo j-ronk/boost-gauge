@@ -524,14 +524,12 @@ private struct ReorderRows<Item: Hashable, Row: View>: View {
 
 /// The page's first group: the item's label and its real panel, live.
 private struct PreviewSection: View {
-    static let height: CGFloat = 300
     let model: SettingsModel
     let id: ItemID
 
     var body: some View {
         Section {
             ItemPreview(model: model, id: id)
-                .frame(height: Self.height)
                 .padding(.vertical, 6)
         }
     }

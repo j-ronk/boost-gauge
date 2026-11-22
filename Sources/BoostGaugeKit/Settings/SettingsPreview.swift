@@ -8,9 +8,9 @@ struct ItemPreview: View {
 
     var body: some View {
         if let item = model.item(id) {
-            VStack(spacing: 14) {
+            VStack(spacing: 2) {
                 MenuBarStrip { item.label }
-                ScaledToFit {
+                PanelTop {
                     item.panel
                         .allowsHitTesting(false)
                         .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -60,23 +60,39 @@ struct MenuBarStrip<Content: View>: View {
     }
 }
 
-/// Lays the content out at its own size and scales it down, never up, to fit, keeping it centred at the top.
-struct ScaledToFit<Content: View>: View {
+/// The panel at its real size. One taller than `maxHeight` shows its top, fading out at the bottom: scaled down,
+/// a tall panel's text gets too small to read.
+struct PanelTop<Content: View>: View {
+    static var maxHeight: CGFloat { 320 }
+    static var fade: CGFloat { 56 }
+    /// Room around the panel for its shadow, which a clip would otherwise cut.
+    static var margin: CGFloat { 12 }
+
     @ViewBuilder let content: Content
-    @State private var natural = CGSize.zero
+    @State private var natural: CGFloat = 0
+
+    static func visibleHeight(natural: CGFloat) -> CGFloat { min(natural, maxHeight) }
+    static func isClipped(natural: CGFloat) -> Bool { natural > maxHeight }
 
     var body: some View {
-        GeometryReader { geo in
-            content
-                .fixedSize()
-                .onGeometryChange(for: CGSize.self) { $0.size } action: { natural = $0 }
-                .scaleEffect(Self.scale(natural: natural, available: geo.size), anchor: .top)
-                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
-        }
-    }
-
-    static func scale(natural: CGSize, available: CGSize) -> CGFloat {
-        guard natural.width > 0, natural.height > 0 else { return 1 }
-        return min(1, available.width / natural.width, available.height / natural.height)
+        let clipped = Self.isClipped(natural: natural)
+        let height = Self.visibleHeight(natural: natural) + Self.margin + (clipped ? 0 : Self.margin)
+        content
+            .fixedSize()
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { natural = $0 }
+            .padding(.horizontal, Self.margin)
+            .padding(.top, Self.margin)
+            .frame(height: height, alignment: .top)
+            .mask {
+                if clipped {
+                    LinearGradient(stops: [.init(color: .black, location: 0),
+                                           .init(color: .black, location: 1 - Self.fade / height),
+                                           .init(color: .clear, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                } else {
+                    Rectangle()
+                }
+            }
+            .frame(maxWidth: .infinity)
     }
 }

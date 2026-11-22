@@ -58,9 +58,14 @@ struct SettingsPreviewTests {
         #expect(!ctx.panels.isOpen(.cpu))
     }
 
-    @Test func panelScalesDownToFitButNeverUp() {
-        #expect(ScaledToFit<EmptyView>.scale(natural: CGSize(width: 300, height: 1000), available: CGSize(width: 320, height: 500)) == 0.5)
-        #expect(ScaledToFit<EmptyView>.scale(natural: CGSize(width: 300, height: 200), available: CGSize(width: 320, height: 500)) == 1)
-        #expect(ScaledToFit<EmptyView>.scale(natural: .zero, available: CGSize(width: 320, height: 500)) == 1)
+    @Test func tallPanelShowsItsTopAtFullSizeAndShortPanelShowsWhole() {
+        typealias Top = PanelTop<EmptyView>
+        #expect(Top.visibleHeight(natural: 1000) == Top.maxHeight)
+        #expect(Top.isClipped(natural: 1000))
+        #expect(Top.visibleHeight(natural: 200) == 200)
+        #expect(!Top.isClipped(natural: 200))
+        #expect(Top.visibleHeight(natural: Top.maxHeight) == Top.maxHeight)
+        #expect(!Top.isClipped(natural: Top.maxHeight))
+        #expect(Top.maxHeight == 320)
     }
 }
