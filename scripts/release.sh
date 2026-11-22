@@ -51,6 +51,7 @@ app="$derived/Build/Products/Release/BoostGauge.app"
 zip="$out/BoostGauge-$version.zip"   # scratch upload for the app notarisation
 dmg="$out/BoostGauge-$version.dmg"
 
+hdiutil detach -force -quiet "$out/mnt" >/dev/null 2>&1 || true   # leftover from an interrupted run
 rm -rf "$out"
 mkdir -p "$out"
 
@@ -104,7 +105,7 @@ check_signed "$app/Contents/Frameworks/BoostGaugeKit.framework"
 # --- Notarise and staple. The app is notarised and stapled on its own first so it still passes
 # Gatekeeper offline after being dragged out of the DMG; the DMG then gets its own submission.
 notarise() {
-  local file=$1 json="$out/notary-submit.json" st id state
+  local file=$1 json="$out/notary-${1##*.}.json" st id state
   set +e
   xcrun notarytool submit "$file" --keychain-profile "$profile" --wait --timeout 30m --output-format json > "$json"
   st=$?
@@ -159,12 +160,14 @@ echo "$assessment" | sed 's/^/  /'
 grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the DMG but not as Notarized Developer ID"
 mnt="$out/mnt"
 mkdir -p "$mnt"
+detach() { hdiutil detach -quiet "$mnt" 2>/dev/null || hdiutil detach -force -quiet "$mnt" 2>/dev/null || true; }
+trap detach EXIT
 hdiutil attach -nobrowse -readonly -quiet -mountpoint "$mnt" "$dmg" || fail "could not mount the DMG"
-detach() { hdiutil detach -quiet "$mnt" || hdiutil detach -force -quiet "$mnt"; }
 [ -L "$mnt/Applications" ] && [ "$(readlink "$mnt/Applications")" = "/Applications" ] || { detach; fail "DMG has no Applications link"; }
 xcrun stapler validate "$mnt/BoostGauge.app" || { detach; fail "app inside the DMG is not stapled"; }
 assessment=$(spctl -a -vv -t exec "$mnt/BoostGauge.app" 2>&1) || { echo "$assessment" >&2; detach; fail "spctl rejected the app in the DMG"; }
 detach
+trap - EXIT
 echo "$assessment" | sed 's/^/  /'
 grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the app but not as Notarized Developer ID"
 rmdir "$mnt"
