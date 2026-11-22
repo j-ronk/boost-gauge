@@ -109,7 +109,7 @@ struct BatteryIconTests {
             for glyph in [BatteryGlyph.none, .bolt] {
                 let a = Alpha(BatteryIcon.label(percent: percent, glyph: glyph, showPercentage: true))
                 for c in corners { #expect(a.at(c.x, c.y) < 0.1, "\(percent) \(glyph) \(c)") }
-                // Nothing above or below the body except the bolt's overhang, and there's no bolt beside a number.
+                // Nothing below the body: the small bolt beside a number stays inside it, unlike the big one.
                 #expect(a.maxAlpha(in: CGRect(x: 0, y: 0, width: b.maxX, height: b.minY)) < 0.05, "\(percent) \(glyph)")
             }
         }
@@ -145,6 +145,17 @@ struct BatteryIconTests {
         #expect(abs(body.maxX - parts.glyph.maxX - 1) <= 0.3, "bolt inset \(body.maxX - parts.glyph.maxX)")
         #expect(abs(parts.glyph.minX - parts.digits.maxX - 1) <= 0.3, "gap \(parts.glyph.minX - parts.digits.maxX)")
         #expect(abs(parts.glyph.midY - body.midY) <= 0.25, "bolt dy \(parts.glyph.midY - body.midY)")
+    }
+
+    /// No percentage shrinks beside the bolt or crosses into it: "100" is the widest and still fits.
+    @Test func everyNumberFitsBesideTheBolt() throws {
+        let body = BatteryIcon.bodyRect
+        for percent in 0...100 {
+            let parts = try #require(InkParts(percent: percent, glyph: .bolt), "\(percent)%")
+            #expect(parts.digits.minX >= body.minX + 1.5 - 0.3, "\(percent)% \(parts.digits)")
+            #expect(parts.digits.maxX <= parts.glyph.minX - 1 + 0.3, "\(percent)% \(parts.digits) bolt \(parts.glyph)")
+            #expect(abs(parts.digits.height - 6.65) <= 0.35, "\(percent)% shrank: \(parts.digits.height)")
+        }
     }
 
     /// A short number sits in the middle of the room the bolt leaves, not against the bolt.
@@ -296,7 +307,7 @@ struct InkParts {
         let plain = Alpha(BatteryIcon.label(percent: percent, glyph: .none, showPercentage: false))
         // Only inside the body: the cut-outs are what changed there.
         let body = BatteryIcon.bodyRect.insetBy(dx: 1, dy: 0.5)
-        // How much of the pixel is cut, 0...1: a full cut keeps 12% of the ink.
+        // How much of the pixel is cut, 0...1: a full cut keeps 12% of the ink (BatteryIcon's cutOut, 0.88).
         func cut(_ px: Int, _ py: Int) -> CGFloat {
             let i = py * number.width + px
             let p = CGFloat(plain.values[i])
