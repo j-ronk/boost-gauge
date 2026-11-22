@@ -23,8 +23,12 @@ public struct BatterySnapshot: Equatable, Sendable {
     /// IOPS "Optimized Battery Charging Engaged": the one public-dictionary signal that macOS is holding the charge.
     var optimizedChargingEngaged = false
 
-    /// Positive while charging, negative while draining.
-    var batteryW: Double { Double(voltage_mV) * Double(amperage_mA) / 1_000_000 }
+    /// PowerTelemetryData's BatteryPower, read in the same snapshot as SystemLoad.
+    var telemetryBatteryW: Double?
+
+    /// Positive while charging, negative while draining. Prefers telemetry: voltage times amperage is sampled at a
+    /// different moment from SystemLoad, so the two rows disagreed by up to 10 W while the load changed.
+    var batteryW: Double { telemetryBatteryW ?? Double(voltage_mV) * Double(amperage_mA) / 1_000_000 }
 
     /// Nominal over design: the closer of the two IORegistry ratios to System Settings' Maximum Capacity
     /// (89% vs 86% from raw max). It still drifts a point from Apple's figure as nominal capacity moves,

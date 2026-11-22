@@ -22,6 +22,7 @@ enum BatteryParser {
         let external = bool(sb["ExternalConnected"])
         if let telemetry = sb["PowerTelemetryData"] as? [String: Any] {
             s.systemLoadW = positiveWatts(milliwatts: telemetry["SystemLoad"])
+            s.telemetryBatteryW = int(telemetry["BatteryPower"]).map { Double($0) / 1000 }
             if external { s.adapterInW = positiveWatts(milliwatts: telemetry["SystemPowerIn"]) }
         }
         // AdapterDetails lingers after unplugging, so only trust it while the adapter is connected.

@@ -11,7 +11,9 @@ struct BatteryParserTests {
         #expect(s.percent == 18)
         #expect(s.amperage_mA == -3089)
         #expect(s.voltage_mV == 10847)
-        #expect(s.batteryW < -30)
+        // From the same telemetry snapshot as SystemLoad, so adapter in + battery out adds up to the load.
+        #expect(s.batteryW == -26.351)
+        #expect(abs((s.adapterInW ?? 0) - s.batteryW - (s.systemLoadW ?? 0)) < 0.001)
         #expect(s.minutesToFull == nil)
         #expect(s.minutesToEmpty == nil)
         #expect(s.systemLoadW == 114.415)
