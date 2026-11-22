@@ -21,24 +21,7 @@ struct CPUPanel: View {
     }
 
     private var cores: some View {
-        PanelSection("Cores") {
-            Chart(model.cores) { core in
-                BarMark(x: .value("Core", "\(core.id + 1)"), y: .value("Load", core.percent))
-                    .foregroundStyle(by: .value("Type", core.kind.title))
-            }
-            .chartForegroundStyleScale(domain: [CoreKind.efficiency.title, CoreKind.performance.title])
-            .chartYScale(domain: 0...100)
-            .chartYAxis {
-                AxisMarks(position: .trailing, values: [0, 50, 100]) { value in
-                    AxisGridLine()
-                    AxisValueLabel { if let p = value.as(Int.self) { Text("\(p)%") } }
-                }
-            }
-            .chartXAxis(.hidden)
-            .chartLegend(position: .bottom, alignment: .leading)
-            .frame(height: 90)
-            .accessibilityLabel("Per-core load")
-        }
+        PanelSection("Cores") { CoresChart(cores: model.cores, height: 90, showsLegend: true) }
     }
 
     private var topProcesses: some View {
@@ -52,5 +35,32 @@ struct CPUPanel: View {
                 Text("Loading…").foregroundStyle(.tertiary)
             }
         }
+    }
+}
+
+/// Per-core load bars, efficiency and performance cores in their own colours.
+struct CoresChart: View {
+    let cores: [CoreLoad]
+    let height: CGFloat
+    let showsLegend: Bool
+
+    var body: some View {
+        Chart(cores) { core in
+            BarMark(x: .value("Core", "\(core.id + 1)"), y: .value("Load", core.percent))
+                .foregroundStyle(by: .value("Type", core.kind.title))
+        }
+        .chartForegroundStyleScale(domain: [CoreKind.efficiency.title, CoreKind.performance.title])
+        .chartYScale(domain: 0...100)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: [0, 50, 100]) { value in
+                AxisGridLine()
+                AxisValueLabel { if let p = value.as(Int.self) { Text("\(p)%") } }
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartLegend(showsLegend ? .visible : .hidden)
+        .chartLegend(position: .bottom, alignment: .leading)
+        .frame(height: height)
+        .accessibilityLabel("Per-core load")
     }
 }

@@ -2,10 +2,11 @@ import Foundation
 
 /// The user's left-to-right order of menu bar items. Every item has a slot, shown or not.
 public enum ItemOrder {
-    public static let `default` = ItemID.allCases
+    /// Overview opens the condensed panel for the items beside it, so it leads them.
+    public static let `default` = [ItemID.overview] + ItemID.allCases.filter { $0 != .overview }
 
-    /// Drops unknown and repeated ids, then appends any missing item in declaration order,
-    /// so an item added in a later version lands at the end.
+    /// Drops unknown and repeated ids, then adds any missing item in declaration order, so an item added in a later
+    /// version lands at the end. Overview is the exception: it joins at the front, where `default` puts it.
     public static func normalized(_ raw: [String]?) -> [ItemID] {
         normalized((raw ?? []).compactMap(ItemID.init(rawValue:)))
     }
@@ -13,7 +14,8 @@ public enum ItemOrder {
     public static func normalized(_ ids: [ItemID]) -> [ItemID] {
         var seen = Set<ItemID>()
         let known = ids.filter { seen.insert($0).inserted }
-        return known + ItemID.allCases.filter { !seen.contains($0) }
+        let lead: [ItemID] = seen.contains(.overview) ? [] : [.overview]
+        return lead + known + ItemID.allCases.filter { !seen.contains($0) && $0 != .overview }
     }
 
     /// Same semantics as SwiftUI's `onMove`: `destination` is an index in the list before the move.

@@ -121,7 +121,7 @@ enum CPUCores {
         guard !hadBaseline, previous != nil, let settleDelay else { return }
         settleTask = Task { [weak self] in
             try? await Task.sleep(for: settleDelay)
-            guard !Task.isCancelled, let self, self.settings.isShown(.cpu), self.model.total == nil, self.previous != nil else { return }
+            guard !Task.isCancelled, let self, self.model.total == nil, self.previous != nil else { return }
             self.sample()
         }
     }

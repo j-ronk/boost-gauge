@@ -17,6 +17,7 @@ struct BoostGaugeApp: App {
         ItemScene(slot: 5, context: context)
         ItemScene(slot: 6, context: context)
         ItemScene(slot: 7, context: context)
+        ItemScene(slot: 8, context: context)
         Settings { context.settingsView }
     }
 }

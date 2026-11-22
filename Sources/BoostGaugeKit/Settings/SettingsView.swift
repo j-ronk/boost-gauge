@@ -58,6 +58,19 @@ import UniformTypeIdentifiers
         move(fromOffsets: IndexSet(integer: index), toOffset: step > 0 ? index + step + 1 : index + step)
     }
 
+    var overviewStyle: Binding<OverviewStyle> {
+        Binding(get: { self.settings.overviewStyle }, set: { self.settings.overviewStyle = $0 })
+    }
+
+    var overviewHidesOthers: Binding<Bool> {
+        Binding(get: { self.settings.overviewHidesOthers }, set: { self.settings.overviewHidesOthers = $0 })
+    }
+
+    var overviewReplacesOthers: Bool { settings.overviewReplacesOthers }
+
+    /// The item's switch does nothing while Overview stands in for it.
+    func isReplacedByOverview(_ id: ItemID) -> Bool { id != .overview && settings.overviewReplacesOthers }
+
     var showPercentage: Binding<Bool> {
         Binding(get: { self.settings.showBatteryPercentage }, set: { self.settings.showBatteryPercentage = $0 })
     }
@@ -102,6 +115,15 @@ import UniformTypeIdentifiers
         case .network: "Network"
         case .disk: "Disk"
         case .power: "Power"
+        case .overview: "Overview"
+        }
+    }
+
+    static func title(_ style: OverviewStyle) -> String {
+        switch style {
+        case .bars: "Bars"
+        case .list: "List"
+        case .tiles: "Tiles"
         }
     }
 
@@ -139,8 +161,9 @@ enum SettingsPane: Hashable {
     case general, menuBar
     case item(ItemID)
 
-    /// Power sits beside Battery, whose panel it shares sections with; the rest follow menu bar declaration order.
-    static let items: [ItemID] = [.battery, .power, .cpu, .gpu, .memory, .temps, .network, .disk]
+    /// Overview leads, as it does in the menu bar. Power sits beside Battery, whose panel it shares sections with;
+    /// the rest follow menu bar declaration order.
+    static let items: [ItemID] = [.overview, .battery, .power, .cpu, .gpu, .memory, .temps, .network, .disk]
 
     @MainActor var title: String {
         switch self {
@@ -162,6 +185,7 @@ enum SettingsPane: Hashable {
         case .item(.temps): SettingsIcon(symbol: "thermometer.medium", color: .orange)
         case .item(.network): SettingsIcon(symbol: "arrow.up.arrow.down", color: .blue)
         case .item(.disk): SettingsIcon(symbol: "internaldrive", color: .gray)
+        case .item(.overview): SettingsIcon(symbol: "chart.bar.fill", color: .purple)
         }
     }
 }
@@ -224,6 +248,7 @@ struct SettingsView: View {
         switch pane {
         case .general: GeneralPage(model: model)
         case .menuBar: MenuBarPage(model: model)
+        case .item(.overview): OverviewPage(model: model)
         case let .item(id): ItemPage(model: model, id: id)
         }
     }
@@ -264,7 +289,7 @@ private struct MenuBarPage: View {
 
     var body: some View {
         Form {
-            Section("Items") {
+            Section {
                 ForEach(model.order, id: \.self) { id in
                     Toggle(isOn: model.shown(id)) {
                         Label {
@@ -285,10 +310,17 @@ private struct MenuBarPage: View {
                         return provider
                     }
                     .onDrop(of: [.boostGaugeItem], delegate: RowDropDelegate(target: id, model: model, dragging: $dragging))
+                    .disabled(model.isReplacedByOverview(id))
                     .contextMenu {
                         Button("Move Up") { model.move(id, by: -1) }.disabled(!model.canMove(id, by: -1))
                         Button("Move Down") { model.move(id, by: 1) }.disabled(!model.canMove(id, by: 1))
                     }
+                }
+            } header: {
+                Text("Items")
+            } footer: {
+                if model.overviewReplacesOthers {
+                    Text("Hidden while Overview replaces them.").foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -297,6 +329,26 @@ private struct MenuBarPage: View {
                 Picker("Label Alignment", selection: model.captionAlignment) {
                     ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
                 }
+            }
+        }
+    }
+}
+
+private struct OverviewPage: View {
+    let model: SettingsModel
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show in Menu Bar", isOn: model.shown(.overview))
+                Toggle("Hide Other Items", isOn: model.overviewHidesOthers)
+                    .disabled(!model.shown(.overview).wrappedValue)
+            }
+            Section("Panel") {
+                Picker("Style", selection: model.overviewStyle) {
+                    ForEach(OverviewStyle.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                }
+                .pickerStyle(.segmented)
             }
         }
     }

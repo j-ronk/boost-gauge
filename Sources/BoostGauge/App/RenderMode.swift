@@ -48,6 +48,9 @@ import BoostGaugeKit
         await save(ControlSamples(), "controls", in: dir)
         await save(DemoPanel(), "demo-panel", in: dir)
         await save(menuBarStrip(DemoLabels()), "demo-labels", in: dir)
+        for strip in OverviewItem.renderStrips() {
+            await save(menuBarStrip(strip.view), "overview-menubar-\(strip.name)", in: dir)
+        }
         return failures == 0
     }
 

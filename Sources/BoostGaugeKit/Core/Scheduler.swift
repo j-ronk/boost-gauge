@@ -20,17 +20,17 @@ import Observation
         items.first { $0.id == id }
     }
 
-    /// Ticks shown items only. Test seam for the loop in `start()`.
+    /// Ticks the items in the menu bar only, in registration order. Test seam for the loop in `start()`.
     public func fire(now: Date) {
-        for item in items where settings.isShown(item.id) {
+        for item in items where settings.isInMenuBar(item.id) {
             item.tick(now: now)
         }
-        shownAtLastTick = Set(items.map(\.id).filter(settings.isShown))
+        shownAtLastTick = Set(items.map(\.id).filter(settings.isInMenuBar))
     }
 
     /// An item switched on in Settings would otherwise show a blank label for up to a whole interval.
     private func tickNewlyShown(now: Date) {
-        let shown = Set(items.map(\.id).filter(settings.isShown))
+        let shown = Set(items.map(\.id).filter(settings.isInMenuBar))
         for item in items where shown.contains(item.id) && !shownAtLastTick.contains(item.id) {
             item.tick(now: now)
         }
@@ -40,7 +40,7 @@ import Observation
     private func watchShown() {
         guard loop != nil else { return }
         withObservationTracking {
-            for item in items { _ = settings.isShown(item.id) }
+            for item in items { _ = settings.isInMenuBar(item.id) }
         } onChange: { [weak self] in
             // onChange fires before the new value is stored, so act on the next main-actor turn.
             Task { @MainActor in

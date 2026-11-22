@@ -13,6 +13,8 @@ import BoostGaugeKit
         add(CPUItem(ctx)); add(GPUItem(ctx)); add(MemoryItem(ctx)) // Slot C (CPU/GPU/RAM)
         //
         add(TempsItem(ctx)); add(NetworkItem(ctx)); add(DiskItem(ctx)) // Slot D (Temps/Net/Disk)
+        // Last: it ticks after the items it reads, and ticks the ones that are out of the menu bar itself.
+        add(OverviewItem(ctx))
         //
         SettingsFeature.install(ctx) // Slot E (Settings)
     }

@@ -3,7 +3,7 @@ import Observation
 
 /// Puts Boost Gauge's items in the menu bar in the user's order. macOS 27 remembers a position for each status item
 /// and ignores insertion order and `Preferred Position`, so the menu bar scenes stay put as fixed slots
-/// (`Item-0`…`Item-7`) and each slot shows whichever item belongs at its place, left to right.
+/// (`Item-0`…`Item-8`) and each slot shows whichever item belongs at its place, left to right.
 @MainActor @Observable public final class MenuBarSlots {
     /// Slot → the item it shows. Slots out of the menu bar aren't listed.
     public private(set) var assignment: [Int: ItemID] = [:]
@@ -16,15 +16,15 @@ import Observation
         self.positions = positions
     }
 
-    /// Slot k is in the menu bar while item k is shown, so the slots macOS has placed stay the same
+    /// Slot k is in the menu bar while item k is, so the slots macOS has placed stay the same
     /// across relaunches. Only what each one shows moves.
-    public func isInserted(_ slot: Int) -> Bool { settings.isShown(ItemID.allCases[slot]) }
+    public func isInserted(_ slot: Int) -> Bool { settings.isInMenuBar(ItemID.allCases[slot]) }
 
     public func item(inSlot slot: Int) -> ItemID { assignment[slot] ?? ItemID.allCases[slot] }
 
     /// Returns whether anything changed. Assigning the same slots again would re-render every label.
     @discardableResult public func refresh() -> Bool {
-        let shown = Set(ItemID.allCases.filter(settings.isShown))
+        let shown = Set(ItemID.allCases.filter(settings.isInMenuBar))
         let next = Self.assign(order: settings.itemOrder, shown: shown, positions: positions())
         guard next != assignment else { return false }
         assignment = next
@@ -52,7 +52,7 @@ import Observation
     private func track() {
         withObservationTracking {
             _ = settings.itemOrder
-            for id in ItemID.allCases { _ = settings.isShown(id) }
+            for id in ItemID.allCases { _ = settings.isInMenuBar(id) }
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

@@ -28,7 +28,8 @@ public extension SettingsFeature {
     @MainActor static func renderPages(_ ctx: AppContext) -> [(name: String, view: AnyView)] {
         let model = SettingsModel(ctx)
         let panes: [(String, SettingsPane)] = [("general", .general), ("menubar", .menuBar), ("cpu", .item(.cpu)),
-                                               ("battery", .item(.battery)), ("network", .item(.network))]
+                                               ("battery", .item(.battery)), ("network", .item(.network)),
+                                               ("overview", .item(.overview))]
         return panes.map { name, pane in (name, AnyView(SettingsView(model: model, pane: pane))) }
     }
 }
