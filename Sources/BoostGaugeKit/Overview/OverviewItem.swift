@@ -2,16 +2,20 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// One menu bar item for the whole Mac: a mini-bars glyph (CPU, GPU, memory) that opens a condensed panel of every
+/// One menu bar item for the whole Mac: a mini-bars glyph (one live bar per chosen stat) that opens a condensed panel of every
 /// other item's headline figures. It reads nothing itself; the figures are the other items' own models.
 @MainActor public final class OverviewItem: BoostGaugeItem {
     public let id = ItemID.overview
     let model = OverviewModel()
 
-    /// The glyph needs these on every beat.
-    static let glyphSources: [ItemID] = [.cpu, .gpu, .memory]
-    /// The rest of the panel's figures, needed only while it's open.
-    static let panelSources: [ItemID] = [.temps, .network, .disk]
+    /// The panel's figures, needed only while it's open.
+    static let panelSources: [ItemID] = [.cpu, .gpu, .memory, .temps, .network, .disk]
+
+    /// The items the glyph's bars copy, needed on every beat. Battery charge comes from Overview's own read.
+    static func sources(for metrics: [OverviewMetric]) -> [ItemID] {
+        var seen = Set<ItemID>()
+        return metrics.compactMap(\.source).filter { seen.insert($0).inserted }
+    }
 
     private let ctx: AppContext
     private let readBattery: (_ fresh: Bool) -> BatterySnapshot?
@@ -31,7 +35,9 @@ import UniformTypeIdentifiers
 
     private var settings: AppSettings { ctx.settings }
 
-    public var label: AnyView { AnyView(OverviewLabel(model: model)) }
+    public var label: AnyView { AnyView(OverviewLiveLabel(model: model, settings: settings)) }
+
+    private var glyphSources: [ItemID] { Self.sources(for: settings.overviewGlyphMetrics) }
 
     public var panel: AnyView {
         AnyView(OverviewLivePanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in
@@ -42,7 +48,8 @@ import UniformTypeIdentifiers
     /// The scheduler ticks items in registration order and Overview registers last, so the sources in the menu bar
     /// have already ticked this beat. The rest are ticked here; a source out of the menu bar otherwise never updates.
     public func tick(now: Date) {
-        feed(Self.glyphSources + (panelOpen ? Self.panelSources : []), now: now)
+        let glyph = glyphSources
+        feed(glyph + (panelOpen ? Self.panelSources.filter { !glyph.contains($0) } : []), now: now)
         collect(now: now)
         model.recordSparks(OverviewStyle.list.metrics.filter(isFresh))
     }
@@ -51,8 +58,9 @@ import UniformTypeIdentifiers
         panelOpen = true
         // CPU's process baseline belongs to whichever panel shows the rows; start it fresh, as the CPU panel does.
         if let cpu = ctx.scheduler.item(.cpu) { ctx.panels.opened(cpu) }
-        // The glyph sources ticked moments ago; a second tick now would measure a sliver of a second.
-        feed(Self.panelSources, now: .now)
+        // The glyph's sources ticked moments ago; a second tick now would measure a sliver of a second.
+        let glyph = glyphSources
+        feed(Self.panelSources.filter { !glyph.contains($0) }, now: .now)
         collect(now: .now, freshBattery: true)
     }
 
@@ -75,25 +83,21 @@ import UniformTypeIdentifiers
     }
 
     private func feed(_ ids: [ItemID], now: Date) {
-        for id in ids where !settings.isInMenuBar(id) {
+        for id in ids where !settings.isShown(id) {
             ctx.scheduler.item(id)?.tick(now: now)
         }
     }
 
     /// Whether a row's figure was read this beat, so its sparkline only gets real samples.
     private func isFresh(_ metric: OverviewMetric) -> Bool {
-        switch metric {
-        case .cpu, .gpu, .memory: true
-        case .cpuTemp, .gpuTemp, .batteryTemp, .hottest: panelOpen || settings.isInMenuBar(.temps)
-        case .network: panelOpen || settings.isInMenuBar(.network)
-        case .disk: panelOpen || settings.isInMenuBar(.disk)
-        case .battery, .systemPower: readsBattery
-        }
+        guard let source = metric.source else { return readsBattery }
+        return panelOpen || settings.isShown(source) || glyphSources.contains(source)
     }
 
     /// Battery and Power share one reading per beat, so while either is in the menu bar this costs nothing.
     private var readsBattery: Bool {
-        panelOpen || settings.isInMenuBar(.battery) || settings.isInMenuBar(.power)
+        panelOpen || settings.isShown(.battery) || settings.isShown(.power)
+            || settings.overviewGlyphMetrics.contains(.battery)
     }
 
     private func collect(now: Date, freshBattery: Bool = false) {
@@ -120,7 +124,7 @@ import UniformTypeIdentifiers
         collect(now: .now, freshBattery: true)
         if let cores = (ctx.scheduler.item(.cpu) as? CPUItem)?.model.cores { model.cores = cores }
         let sample = Self.sampleModel()
-        let sampleLabel = AnyView(OverviewLabel(model: sample))
+        let sampleLabel = AnyView(OverviewLabel(model: sample, metrics: OverviewMetric.defaultGlyph))
         var variants = [RenderVariant("live", label: label, panel: AnyView(OverviewLivePanel(model: model, settings: settings)))]
         for style in OverviewStyle.allCases {
             variants.append(RenderVariant("sample-\(style.rawValue)", label: sampleLabel,
@@ -176,10 +180,11 @@ import UniformTypeIdentifiers
 }
 
 public extension OverviewItem {
-    /// The Overview item in a menu bar strip at the sample figures for `--render`: beside the other items, and alone,
-    /// as it is with Hide Other Items on.
+    /// The Overview item in a menu bar strip at the sample figures for `--render`: beside the other items, alone,
+    /// and at one, three and six bars.
     static func renderStrips() -> [(name: String, view: AnyView)] {
-        let glyph = OverviewLabel(model: sampleModel())
+        let sample = sampleModel()
+        let glyph = OverviewLabel(model: sample, metrics: OverviewMetric.defaultGlyph)
         let beside = HStack(spacing: 12) {
             glyph
             StackedLabel(caption: "CPU", value: "29%", widest: "100%")
@@ -193,6 +198,12 @@ public extension OverviewItem {
             Image(nsImage: battery).renderingMode(.template).frame(width: battery.size.width, height: battery.size.height)
         }
         .fixedSize()
-        return [("beside", AnyView(beside)), ("replacing", AnyView(glyph))]
+        // One, three and the most bars, at varied levels: 29, 100, 49, 58, 72 and 34.
+        let counts: [(String, [OverviewMetric])] = [
+            ("glyph-1", [.cpu]), ("glyph-3", OverviewMetric.defaultGlyph),
+            ("glyph-6", [.cpu, .gpu, .memory, .disk, .hottest, .battery]),
+        ]
+        return [("beside", AnyView(beside)), ("alone", AnyView(glyph))]
+            + counts.map { ($0.0, AnyView(OverviewLabel(model: sample, metrics: $0.1))) }
     }
 }

@@ -16,15 +16,16 @@ struct SettingsPreviewTests {
         return (SettingsModel(ctx, loginItem: .inert), ctx, items)
     }
 
-    @Test func menuBarStripFollowsOrderVisibilityAndHideOthers() {
-        let (model, ctx, _) = makeModel()
+    @Test func menuBarStripFollowsOrderAndVisibility() {
+        let (model, _, _) = makeModel()
         #expect(model.menuBarItems == [.battery, .cpu, .memory])
-        model.drop(.memory, onto: .cpu)
+        model.move(.memory, by: -1)
+        model.move(.memory, by: -1)
         #expect(model.menuBarItems == [.battery, .memory, .cpu])
         model.shown(.overview).wrappedValue = true
-        #expect(model.menuBarItems.first == .overview)
-        ctx.settings.overviewHidesOthers = true
-        #expect(model.menuBarItems == [.overview])
+        #expect(model.menuBarItems == [.overview, .battery, .memory, .cpu])
+        model.shown(.battery).wrappedValue = false
+        #expect(model.menuBarItems == [.overview, .memory, .cpu])
     }
 
     @Test func previewTicksOnlyWhatNothingElseTicks() {
@@ -34,9 +35,9 @@ struct SettingsPreviewTests {
         ctx.settings.setShown(.overview, true)
         #expect(!model.previewNeedsTicks(.gpu), "Overview feeds its glyph's sources")
         #expect(model.previewNeedsTicks(.temps))
-        ctx.settings.overviewHidesOthers = true
-        #expect(!model.previewNeedsTicks(.cpu), "fed by Overview while it stands aside")
-        #expect(model.previewNeedsTicks(.battery))
+        ctx.settings.setGlyphMetricShown(.hottest, true)
+        #expect(!model.previewNeedsTicks(.temps), "a temperature bar makes Overview feed Temps")
+        #expect(model.previewNeedsTicks(.disk))
     }
 
     @Test func previewSamplesUntilItsPageGoes() async throws {

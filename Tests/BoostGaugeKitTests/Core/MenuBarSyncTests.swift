@@ -29,7 +29,7 @@ struct MenuBarSyncTests {
         // Memory's window dragged to the far left.
         screen.positions[slot(.memory)] = 50
         slots.refresh()
-        #expect(settings.itemOrder.filter(settings.isInMenuBar) == [.memory, .battery, .cpu])
+        #expect(settings.itemOrder.filter(settings.isShown) == [.memory, .battery, .cpu])
         // Every slot keeps what it showed, so nothing on screen jumps back.
         #expect(slots.assignment == [slot(.battery): .battery, slot(.cpu): .cpu, slot(.memory): .memory])
         // Hidden items keep their places in the order.

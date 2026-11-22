@@ -57,7 +57,7 @@ struct OverviewPanel: View {
 /// Follows a Cmd-drag across the panel's rows or tiles. Each row registers its frame; the dragged one takes the
 /// place of whichever it passes over, so the panel reorders live, as the Settings list does.
 @MainActor @Observable final class ReorderTracker {
-    static let space = "overview.reorder"
+    nonisolated static let space = "overview.reorder"
     private(set) var dragging: OverviewMetric?
     @ObservationIgnored var frames: [OverviewMetric: CGRect] = [:]
     /// Set for the rest of a reorder drag so the List row it ends on doesn't also open or close.

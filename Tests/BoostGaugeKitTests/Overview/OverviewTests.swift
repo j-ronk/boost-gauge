@@ -21,44 +21,14 @@ struct OverviewSettingsTests {
         #expect(AppSettings(defaults: suite.defaults).overviewStyle == .bars)
     }
 
-    @Test func overviewIsOffAndHidesNothingByDefault() {
+    @Test func overviewIsOffByDefaultAndHidesNothing() {
         let suite = TestDefaults()
         let settings = AppSettings(defaults: suite.defaults)
         #expect(!settings.isShown(.overview))
-        #expect(!settings.overviewHidesOthers)
-        #expect(!settings.overviewReplacesOthers)
-        for id in ItemDefaults.shown { #expect(settings.isInMenuBar(id)) }
-    }
-
-    @Test func hideOthersTakesEveryOtherItemOutOnlyWhileOverviewIsShown() {
-        let suite = TestDefaults()
-        let settings = AppSettings(defaults: suite.defaults)
-        settings.overviewHidesOthers = true
-        // Overview hidden: nothing changes.
-        #expect(settings.isInMenuBar(.cpu))
-        #expect(!settings.isInMenuBar(.overview))
-
         settings.setShown(.overview, true)
-        #expect(settings.overviewReplacesOthers)
-        #expect(settings.isInMenuBar(.overview))
-        for id in ItemID.allCases where id != .overview { #expect(!settings.isInMenuBar(id), "\(id)") }
-        // Each item's own choice survives, so turning it off restores the same items.
-        #expect(settings.isShown(.cpu) && settings.isShown(.battery) && !settings.isShown(.gpu))
-
-        settings.overviewHidesOthers = false
-        #expect(settings.isInMenuBar(.cpu) && settings.isInMenuBar(.battery) && !settings.isInMenuBar(.gpu))
-        #expect(settings.isInMenuBar(.overview))
-    }
-
-    @Test func hideOthersPersistsAndSkipsNoOpWrites() {
-        let suite = TestDefaults()
-        let settings = AppSettings(defaults: suite.defaults)
-        settings.overviewHidesOthers = false
-        settings.overviewStyle = .bars
+        // Each item is ticked on or off on its own; showing Overview takes nothing else out.
+        for id in ItemDefaults.shown { #expect(settings.isShown(id)) }
         #expect(suite.defaults.object(forKey: "overview.hidesOthers") == nil)
-        #expect(suite.defaults.object(forKey: "overview.style") == nil)
-        settings.overviewHidesOthers = true
-        #expect(AppSettings(defaults: suite.reopen()).overviewHidesOthers)
     }
 
     @Test func settingsModelBindsOverviewChoices() {
@@ -66,12 +36,10 @@ struct OverviewSettingsTests {
         let ctx = AppContext(settings: AppSettings(defaults: suite.defaults), powerSource: PowerSourceMonitor(initial: .adapter))
         let model = SettingsModel(ctx, loginItem: .inert)
         model.overviewStyle.wrappedValue = .list
-        model.overviewHidesOthers.wrappedValue = true
         #expect(ctx.settings.overviewStyle == .list)
-        #expect(!model.isReplacedByOverview(.cpu))
+        // The Menu Bar page's row and the Overview page's switch are one setting.
         model.shown(.overview).wrappedValue = true
-        #expect(model.isReplacedByOverview(.cpu))
-        #expect(!model.isReplacedByOverview(.overview))
+        #expect(ctx.settings.isShown(.overview))
         #expect(OverviewStyle.allCases.map(SettingsModel.title) == ["Bars", "List", "Tiles"])
     }
 
@@ -86,7 +54,7 @@ struct OverviewSettingsTests {
 
 @MainActor
 struct OverviewMenuBarTests {
-    @Test func replacedItemsStopTickingAndLeaveTheirSlots() {
+    @Test func overviewSitsBesideTheOtherItems() {
         let suite = TestDefaults()
         let settings = AppSettings(defaults: suite.defaults)
         let scheduler = Scheduler(settings: settings)
@@ -97,54 +65,125 @@ struct OverviewMenuBarTests {
         scheduler.fire(now: .now)
         #expect(cpu.ticks == 1 && overview.ticks == 1)
 
-        settings.overviewHidesOthers = true
-        scheduler.fire(now: .now)
-        #expect(cpu.ticks == 1)
-        #expect(overview.ticks == 2)
-
         let slots = MenuBarSlots(settings: settings, positions: { [:] })
-        #expect(ItemID.allCases.indices.filter(slots.isInserted) == [ItemID.allCases.firstIndex(of: .overview)!])
-        slots.refresh()
-        #expect(slots.assignment == [8: .overview])
+        #expect(slots.isInserted(ItemID.allCases.firstIndex(of: .overview)!))
+        #expect(slots.isInserted(ItemID.allCases.firstIndex(of: .cpu)!))
     }
 
-    @Test func takingOverviewOutOfTheMenuBarBringsTheOthersBack() {
+    @Test func cmdDraggingOverviewOutTakesOnlyOverviewOut() throws {
         let suite = TestDefaults()
         let settings = AppSettings(defaults: suite.defaults)
         settings.setShown(.overview, true)
-        settings.overviewHidesOthers = true
         let slots = MenuBarSlots(settings: settings, positions: { [:] })
         slots.refresh()
-        // SwiftUI echoing a replaced slot's removal isn't the user hiding that item.
-        slots.systemSetInserted(slot: 1, false)
-        #expect(settings.isShown(.cpu))
-        // Cmd-dragging Overview out is.
-        slots.systemSetInserted(slot: 8, false)
+        let slot = try #require(slots.assignment.first { $0.value == .overview }?.key)
+        slots.systemSetInserted(slot: slot, false)
         #expect(!settings.isShown(.overview))
-        #expect(settings.isInMenuBar(.cpu))
+        #expect(settings.isShown(.cpu))
     }
 }
 
 @MainActor
 struct OverviewGlyphTests {
-    @Test func levelsScaleToThirteenPointsWithAFloor() {
-        #expect(OverviewGlyph.heights(cpu: 100, gpu: 50, memory: 0) == [13, 6.5, 2])
-        #expect(OverviewGlyph.heights(cpu: 29, gpu: 100, memory: 49) == [4, 13, 6.5])
+    @Test func levelsScaleToFourteenWholePointsWithAFloor() {
+        #expect(OverviewGlyph.heights([100, 50, 0]) == [14, 7, 2])
+        // 29% of 14 is 4.06; 49% is 6.86. Whole points stay crisp at 1x.
+        #expect(OverviewGlyph.heights([29, 100, 49]) == [4, 14, 7])
     }
 
     @Test func missingOrGarbageReadingsDrawAnEmptyTrack() {
-        #expect(OverviewGlyph.heights(cpu: nil, gpu: .nan, memory: .infinity) == [0, 0, 0])
-        #expect(OverviewGlyph.heights(cpu: 140, gpu: -5, memory: nil) == [13, 2, 0])
+        #expect(OverviewGlyph.heights([nil, .nan, .infinity]) == [0, 0, 0])
+        #expect(OverviewGlyph.heights([140, -5, nil]) == [14, 2, 0])
+    }
+
+    @Test func widthGrowsWithTheBarCount() {
+        #expect(OverviewGlyph.size(bars: 1).width == 6)
+        #expect(OverviewGlyph.size(bars: 3).width == 18)
+        #expect(OverviewGlyph.size(bars: 6).width == 36)
+        #expect(OverviewGlyph.size(bars: 6).height == StackedLabel.height)
+        // Whole points everywhere, so nothing lands between pixels at 1x.
+        for n in 1...6 { #expect(OverviewGlyph.size(bars: n).width.truncatingRemainder(dividingBy: 1) == 0) }
     }
 
     @Test func smallMovesReuseTheSameImage() {
-        let a = OverviewGlyph(heights: OverviewGlyph.heights(cpu: 30, gpu: 30, memory: 30)).image
-        let b = OverviewGlyph(heights: OverviewGlyph.heights(cpu: 31, gpu: 30, memory: 30)).image
-        let c = OverviewGlyph(heights: OverviewGlyph.heights(cpu: 60, gpu: 30, memory: 30)).image
+        let a = OverviewGlyph(heights: OverviewGlyph.heights([30, 30, 30])).image
+        let b = OverviewGlyph(heights: OverviewGlyph.heights([31, 30, 30])).image
+        let c = OverviewGlyph(heights: OverviewGlyph.heights([60, 30, 30])).image
+        let wide = OverviewGlyph(heights: OverviewGlyph.heights([30, 30, 30, 30])).image
         #expect(a === b)
         #expect(a !== c)
         #expect(a.isTemplate)
-        #expect(a.size == OverviewGlyph.size)
+        #expect(a.size == OverviewGlyph.size(bars: 3))
+        #expect(wide.size == OverviewGlyph.size(bars: 4))
+    }
+
+    @Test func eachBarFollowsItsStat() {
+        let r = OverviewItem.sampleModel().reading
+        let metrics: [OverviewMetric] = [.cpu, .gpu, .memory, .disk, .hottest, .battery]
+        // 29%, 100%, 49%, 58% used, 72 °C, 34%.
+        #expect(OverviewLabel.heights(metrics, r) == [4, 14, 7, 8, 10, 5])
+        #expect(OverviewLabel.heights([.network, .systemPower], r) == [0, 0], "no scale to fill towards")
+    }
+
+    @Test func voiceOverReadsTheChosenStats() {
+        let r = OverviewItem.sampleModel().reading
+        #expect(OverviewLabel.accessibilityText([.cpu, .disk, .hottest], r) == "Overview, CPU 29%, Disk 58% used, Hottest 72°C")
+        #expect(OverviewLabel.accessibilityText([.battery], r) == "Overview, Battery 34%")
+    }
+}
+
+@MainActor
+struct OverviewGlyphSettingsTests {
+    @Test func defaultsToCPUGPUAndMemory() {
+        let s = AppSettings(defaults: TestDefaults().defaults)
+        #expect(s.overviewGlyphMetrics == [.cpu, .gpu, .memory])
+        #expect(s.overviewGlyphOrder == OverviewMetric.glyphChoices)
+        #expect(!s.overviewGlyphOrder.contains(.network))
+        #expect(!s.overviewGlyphOrder.contains(.systemPower))
+    }
+
+    @Test func choiceAndOrderPersist() {
+        let suite = TestDefaults()
+        let s = AppSettings(defaults: suite.defaults)
+        s.setGlyphMetricShown(.hottest, true)
+        s.setGlyphMetricShown(.gpu, false)
+        s.moveOverviewGlyphMetric(.hottest, onto: .cpu)
+        #expect(s.overviewGlyphMetrics == [.hottest, .cpu, .memory])
+        let again = AppSettings(defaults: suite.defaults)
+        #expect(again.overviewGlyphMetrics == [.hottest, .cpu, .memory])
+    }
+
+    @Test func keepsOneToSixBars() {
+        let s = AppSettings(defaults: TestDefaults().defaults)
+        s.setGlyphMetricShown(.gpu, false)
+        s.setGlyphMetricShown(.memory, false)
+        #expect(!s.canToggleGlyphMetric(.cpu))
+        s.setGlyphMetricShown(.cpu, false)
+        #expect(s.overviewGlyphMetrics == [.cpu])
+        for m in OverviewMetric.glyphChoices { s.setGlyphMetricShown(m, true) }
+        #expect(s.overviewGlyphMetrics.count == OverviewMetric.glyphLimit)
+        #expect(s.overviewGlyphMetrics == Array(OverviewMetric.glyphChoices.prefix(6)))
+        #expect(!s.canToggleGlyphMetric(.battery))
+        #expect(s.canToggleGlyphMetric(.cpu))
+        #expect(!s.canToggleGlyphMetric(.network))
+    }
+
+    @Test func garbageInDefaultsFallsBack() {
+        let suite = TestDefaults()
+        suite.defaults.set(["network", "bogus"], forKey: "overview.glyph.shown")
+        suite.defaults.set(["battery", "battery", "systemPower"], forKey: "overview.glyph.order")
+        let s = AppSettings(defaults: suite.defaults)
+        #expect(s.overviewGlyphMetrics == [.cpu, .gpu, .memory])
+        #expect(s.overviewGlyphOrder.first == .battery)
+        #expect(s.overviewGlyphOrder.count == OverviewMetric.glyphChoices.count)
+        let crowded = TestDefaults()
+        crowded.defaults.set(OverviewMetric.glyphChoices.map(\.rawValue), forKey: "overview.glyph.shown")
+        #expect(AppSettings(defaults: crowded.defaults).overviewGlyphMetrics.count == 6)
+    }
+
+    @Test func sourcesAreTheItemsTheBarsCopy() {
+        #expect(OverviewItem.sources(for: [.cpu, .gpu, .memory]) == [.cpu, .gpu, .memory])
+        #expect(OverviewItem.sources(for: [.cpuTemp, .hottest, .disk, .battery]) == [.temps, .disk])
     }
 }
 
@@ -191,8 +230,8 @@ struct OverviewItemTests {
         #expect(item.model.reading.cpu == 75)
         #expect(item.model.reading.gpu == 40)
         #expect(item.model.reading.memory?.usedPercent == 50)
-        // 75% of 13 pt is 9.75, to the half point 10; 40% is 5.2, so 5.
-        #expect(item.model.glyph == [10, 5, 6.5])
+        // 75% of 14 pt is 10.5, so 11; 40% is 5.6, so 6; 50% is 7.
+        #expect(OverviewLabel.heights(s.overviewGlyphMetrics, item.model.reading) == [11, 6, 7])
         // Panel-only figures wait for the panel.
         #expect(rig.temperatureReads == 0)
         #expect(rig.batteryReads == 0)
@@ -207,16 +246,24 @@ struct OverviewItemTests {
         #expect(rig.feed.reads == 3)
     }
 
-    @Test func replacedItemsKeepUpdatingThroughOverview() {
+    @Test func feedsWhatTheChosenBarsNeedAndNothingElse() {
         let rig = Rig()
         let s = rig.ctx.settings
-        s.setShown(.overview, true)
-        s.setShown(.gpu, true)
-        s.overviewHidesOthers = true
+        for id in ItemID.allCases { s.setShown(id, id == .overview) }
+        s.setGlyphMetricShown(.hottest, true)
+        s.setGlyphMetricShown(.battery, true)
+        for m in [OverviewMetric.cpu, .gpu, .memory] { s.setGlyphMetricShown(m, false) }
+        #expect(s.overviewGlyphMetrics == [.hottest, .battery])
         for i in 0..<3 { rig.ctx.scheduler.fire(now: .now.addingTimeInterval(Double(i) * 2)) }
-        #expect(rig.gpuReads == 3)
-        #expect(rig.feed.reads == 3)
-        #expect(rig.overview.model.reading.cpu == 75)
+        #expect(rig.temperatureReads == 3)
+        #expect(rig.batteryReads == 3)
+        #expect(rig.gpuReads == 0, "no GPU bar, no panel")
+        #expect(rig.feed.reads == 0)
+        let item = rig.overview!
+        // Hottest of 58 and 54 °C fills 58% of 14 pt; 34% charge fills 5.
+        #expect(OverviewLabel.heights(s.overviewGlyphMetrics, item.model.reading) == [8, 5])
+        #expect(item.model.sparks[.hottest]?.count == 3)
+        #expect(item.model.sparks[.cpu] == nil, "CPU wasn't read, so it gets no samples")
     }
 
     @Test func openPanelReadsTheRestAndStopsWhenClosed() {

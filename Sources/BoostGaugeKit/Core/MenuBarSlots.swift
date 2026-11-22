@@ -25,13 +25,13 @@ import Observation
 
     /// Slot k is in the menu bar while item k is, so the slots macOS has placed stay the same
     /// across relaunches. Only what each one shows moves.
-    public func isInserted(_ slot: Int) -> Bool { settings.isInMenuBar(ItemID.allCases[slot]) }
+    public func isInserted(_ slot: Int) -> Bool { settings.isShown(ItemID.allCases[slot]) }
 
     public func item(inSlot slot: Int) -> ItemID { assignment[slot] ?? ItemID.allCases[slot] }
 
     /// Returns whether anything changed. Assigning the same slots again would re-render every label.
     @discardableResult public func refresh() -> Bool {
-        let shown = Set(ItemID.allCases.filter(settings.isInMenuBar))
+        let shown = Set(ItemID.allCases.filter(settings.isShown))
         let positions = positions()
         adoptUserMove(shown: shown, positions: positions)
         let next = Self.assign(order: settings.itemOrder, shown: shown, positions: positions)
@@ -78,7 +78,7 @@ import Observation
     private func track() {
         withObservationTracking {
             _ = settings.itemOrder
-            for id in ItemID.allCases { _ = settings.isInMenuBar(id) }
+            for id in ItemID.allCases { _ = settings.isShown(id) }
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

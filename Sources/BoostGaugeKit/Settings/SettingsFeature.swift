@@ -25,11 +25,11 @@ public enum SettingsFeature {
 
 public extension SettingsFeature {
     /// Each Settings page for `--render`, named for the PNG.
-    @MainActor static func renderPages(_ ctx: AppContext) -> [(name: String, view: AnyView)] {
+    @MainActor static func renderPages(_ ctx: AppContext) -> [(name: String, title: String, view: AnyView)] {
         let model = SettingsModel(ctx)
         let panes: [(String, SettingsPane)] = [("general", .general), ("menubar", .menuBar)]
             + SettingsPane.items.map { (SettingsModel.title($0).lowercased(), .item($0)) }
-        return panes.map { name, pane in (name, AnyView(SettingsView(model: model, pane: pane))) }
+        return panes.map { name, pane in (name, pane.title, AnyView(SettingsView(model: model, pane: pane))) }
     }
 }
 

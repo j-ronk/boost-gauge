@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor @Observable public final class SettingsModel {
     struct RefreshChoice: Hashable {
@@ -40,13 +39,6 @@ import UniformTypeIdentifiers
         settings.itemOrder = order
     }
 
-    /// Live reorder while dragging: `dragged` takes `target`'s place, saving only when something moved.
-    func drop(_ dragged: ItemID, onto target: ItemID) {
-        let edge = ItemOrder.liveEdge(dragging: dragged, over: target, in: order)
-        let moved = ItemOrder.dropping(dragged, on: target, edge: edge, in: order)
-        if moved != order { settings.itemOrder = moved }
-    }
-
     func canMove(_ id: ItemID, by step: Int) -> Bool {
         guard let index = order.firstIndex(of: id) else { return false }
         return order.indices.contains(index + step)
@@ -62,12 +54,6 @@ import UniformTypeIdentifiers
         Binding(get: { self.settings.overviewStyle }, set: { self.settings.overviewStyle = $0 })
     }
 
-    var overviewHidesOthers: Binding<Bool> {
-        Binding(get: { self.settings.overviewHidesOthers }, set: { self.settings.overviewHidesOthers = $0 })
-    }
-
-    var overviewReplacesOthers: Bool { settings.overviewReplacesOthers }
-
     /// The selected style's metrics in the shared order, shown or not.
     var overviewMetrics: [OverviewMetric] {
         let allowed = Set(settings.overviewStyle.metrics)
@@ -78,8 +64,11 @@ import UniformTypeIdentifiers
         Binding(get: { self.settings.isOverviewMetricShown(metric) }, set: { self.settings.setOverviewMetricShown(metric, $0) })
     }
 
-    func dropMetric(_ dragged: OverviewMetric, onto target: OverviewMetric) {
-        settings.moveOverviewMetric(dragged, onto: target)
+    /// A drag in the Contents list, whose offsets count only the style's metrics. The others keep their places.
+    func moveMetrics(fromOffsets source: IndexSet, toOffset destination: Int) {
+        var list = overviewMetrics
+        ItemOrder.move(&list, fromOffsets: source, toOffset: destination)
+        settings.overviewOrder = ItemOrder.reordering(settings.overviewOrder, shownAs: list)
     }
 
     /// The neighbour in the list as shown, which skips the metrics the style doesn't use.
@@ -96,12 +85,45 @@ import UniformTypeIdentifiers
         settings.moveOverviewMetric(metric, onto: target)
     }
 
+    /// The page Settings last showed.
+    var lastPane: SettingsPane? {
+        get { SettingsPane(storageKey: settings.settingsPane) }
+        set { settings.settingsPane = newValue?.storageKey }
+    }
+
+    // MARK: Overview glyph
+
+    /// Every stat the glyph can show, in its order, chosen or not.
+    var glyphMetrics: [OverviewMetric] { settings.overviewGlyphOrder }
+
+    func glyphShown(_ metric: OverviewMetric) -> Binding<Bool> {
+        Binding(get: { self.settings.isGlyphMetricShown(metric) }, set: { self.settings.setGlyphMetricShown(metric, $0) })
+    }
+
+    func canToggleGlyph(_ metric: OverviewMetric) -> Bool { settings.canToggleGlyphMetric(metric) }
+
+    func moveGlyphMetrics(fromOffsets source: IndexSet, toOffset destination: Int) {
+        var order = settings.overviewGlyphOrder
+        ItemOrder.move(&order, fromOffsets: source, toOffset: destination)
+        settings.overviewGlyphOrder = order
+    }
+
+    func canMoveGlyphMetric(_ metric: OverviewMetric, by step: Int) -> Bool {
+        guard let index = glyphMetrics.firstIndex(of: metric) else { return false }
+        return glyphMetrics.indices.contains(index + step)
+    }
+
+    func moveGlyphMetric(_ metric: OverviewMetric, by step: Int) {
+        guard canMoveGlyphMetric(metric, by: step), let index = glyphMetrics.firstIndex(of: metric) else { return }
+        settings.moveOverviewGlyphMetric(metric, onto: glyphMetrics[index + step])
+    }
+
     // MARK: Previews
 
     func item(_ id: ItemID) -> (any BoostGaugeItem)? { ctx.scheduler.item(id) }
 
     /// Left to right, what the menu bar holds now.
-    var menuBarItems: [ItemID] { settings.itemOrder.filter { settings.isInMenuBar($0) && ctx.scheduler.item($0) != nil } }
+    var menuBarItems: [ItemID] { settings.itemOrder.filter { settings.isShown($0) && ctx.scheduler.item($0) != nil } }
 
     func previewOpened(_ id: ItemID) {
         if let item = item(id) { ctx.panels.opened(item) }
@@ -122,12 +144,9 @@ import UniformTypeIdentifiers
     /// The scheduler ticks what's in the menu bar, and Overview there ticks its glyph's sources; a second tick
     /// would measure a sliver of a beat.
     func previewNeedsTicks(_ id: ItemID) -> Bool {
-        if settings.isInMenuBar(id) { return false }
-        return id == .overview || !(settings.isInMenuBar(.overview) && OverviewItem.glyphSources.contains(id))
+        if settings.isShown(id) { return false }
+        return id == .overview || !(settings.isShown(.overview) && OverviewItem.sources(for: settings.overviewGlyphMetrics).contains(id))
     }
-
-    /// The item's switch does nothing while Overview stands in for it.
-    func isReplacedByOverview(_ id: ItemID) -> Bool { id != .overview && settings.overviewReplacesOthers }
 
     var showPercentage: Binding<Bool> {
         Binding(get: { self.settings.showBatteryPercentage }, set: { self.settings.showBatteryPercentage = $0 })
@@ -248,59 +267,149 @@ enum SettingsPane: Hashable {
     }
 }
 
-/// A white glyph on a coloured rounded square, as in System Settings' sidebar.
+/// A coloured glyph on a plain rounded tile, as in System Settings' sidebar on macOS 27. The glyph is fitted inside
+/// the tile, so a wide symbol (the battery) shrinks rather than spilling out.
 struct SettingsIcon: View {
     let symbol: String
     let color: Color
+    var size: CGFloat = 20
 
     var body: some View {
+        let tile = RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
         Image(systemName: symbol)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 20, height: 20)
-            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(color.gradient))
+            .resizable()
+            .symbolRenderingMode(.monochrome)
+            .fontWeight(.semibold)
+            .scaledToFit()
+            .foregroundStyle(color.gradient)
+            .frame(width: size * 0.62, height: size * 0.62)
+            .frame(width: size, height: size)
+            .background(tile.fill(.background))
+            .overlay(tile.strokeBorder(.separator, lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.12), radius: 0.5, y: 0.5)
             .accessibilityHidden(true)
     }
 }
 
-struct SettingsView: View {
-    /// Wide enough for a page's toggles beside its 300 pt panel preview.
-    static let size = CGSize(width: 900, height: 620)
-    let model: SettingsModel
-    @State private var pane: SettingsPane?
+/// Settings windows open in the preference toolbar style, title centred over the toolbar. System Settings uses the
+/// unified style: the content runs under a transparent titlebar, and the page title sits beside back and forward.
+private struct SettingsWindowChrome: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Hook() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 
-    init(model: SettingsModel, pane: SettingsPane = .general) {
+    final class Hook: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            window.toolbarStyle = .unified
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarAppearsTransparent = true
+        }
+    }
+}
+
+extension SettingsPane {
+    /// Stored as the last page open, so Settings reopens where it was left, as System Settings does.
+    var storageKey: String {
+        switch self {
+        case .general: "general"
+        case .menuBar: "menuBar"
+        case let .item(id): id.rawValue
+        }
+    }
+
+    init?(storageKey: String?) {
+        switch storageKey {
+        case "general": self = .general
+        case "menuBar": self = .menuBar
+        case let raw?: guard let id = ItemID(rawValue: raw) else { return nil }; self = .item(id)
+        case nil: return nil
+        }
+    }
+}
+
+/// The toolbar's back and forward: every page visited, and where in that list the window is.
+struct PaneHistory: Equatable {
+    private(set) var visited: [SettingsPane]
+    private(set) var index = 0
+
+    init(_ start: SettingsPane) { visited = [start] }
+
+    var current: SettingsPane { visited[index] }
+    var canGoBack: Bool { index > 0 }
+    var canGoForward: Bool { index < visited.count - 1 }
+
+    /// A new page drops whatever was ahead, as in a browser.
+    mutating func go(to pane: SettingsPane) {
+        guard pane != current else { return }
+        visited = Array(visited.prefix(index + 1)) + [pane]
+        index += 1
+    }
+
+    mutating func back() { if canGoBack { index -= 1 } }
+    mutating func forward() { if canGoForward { index += 1 } }
+}
+
+/// Laid out as System Settings: a full-height sidebar, back and forward beside the page title, and each
+/// page an inset grouped form that leads with its live preview.
+struct SettingsView: View {
+    static let sidebarWidth: CGFloat = 240
+    static let size = CGSize(width: 780, height: 640)
+    let model: SettingsModel
+    @State private var history: PaneHistory
+
+    init(model: SettingsModel, pane: SettingsPane? = nil) {
         self.model = model
-        _pane = State(initialValue: pane)
+        _history = State(initialValue: PaneHistory(pane ?? model.lastPane ?? .general))
     }
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $pane) {
+            List(selection: selection) {
                 Section {
                     row(.general)
                     row(.menuBar)
                 }
-                Section("Items") {
+                Section {
                     ForEach(SettingsPane.items, id: \.self) { row(.item($0)) }
                 }
             }
+            .listStyle(.sidebar)
+            .environment(\.sidebarRowSize, .large)
             // The column width alone was ignored in offscreen renders; a minimum on the list holds it.
-            .frame(minWidth: 200)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 200, max: 200)
+            .frame(minWidth: SettingsView.sidebarWidth)
+            .navigationSplitViewColumnWidth(min: SettingsView.sidebarWidth, ideal: SettingsView.sidebarWidth,
+                                            max: SettingsView.sidebarWidth)
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            let pane = pane ?? .general
-            detail(pane)
+            detail(history.current)
                 .formStyle(.grouped)
-                .navigationTitle(pane.title)
+                .navigationTitle(history.current.title)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        ControlGroup {
+                            Button { history.back() } label: { Label("Back", systemImage: "chevron.left") }
+                                .disabled(!history.canGoBack)
+                            Button { history.forward() } label: { Label("Forward", systemImage: "chevron.right") }
+                                .disabled(!history.canGoForward)
+                        }
+                        .controlGroupStyle(.navigation)
+                    }
+                }
         }
-        .frame(width: SettingsView.size.width, height: SettingsView.size.height)
+        .frame(width: SettingsView.size.width)
+        .frame(minHeight: 480, idealHeight: SettingsView.size.height)
+        .background(SettingsWindowChrome())
         .onAppear { model.refreshLoginItem() }
+        .onChange(of: history.current) { _, pane in model.lastPane = pane }
+    }
+
+    private var selection: Binding<SettingsPane?> {
+        Binding(get: { history.current }, set: { if let pane = $0 { history.go(to: pane) } })
     }
 
     private func row(_ pane: SettingsPane) -> some View {
-        Label { Text(pane.title) } icon: { pane.icon }
+        Label { Text(pane.title) } icon: { pane.icon.sized(24) }
             .tag(pane)
     }
 
@@ -313,6 +422,10 @@ struct SettingsView: View {
         case let .item(id): ItemPage(model: model, id: id).id(id)
         }
     }
+}
+
+private extension SettingsIcon {
+    func sized(_ size: CGFloat) -> SettingsIcon { SettingsIcon(symbol: symbol, color: color, size: size) }
 }
 
 private struct GeneralPage: View {
@@ -346,106 +459,180 @@ private struct GeneralPage: View {
 
 private struct MenuBarPage: View {
     let model: SettingsModel
-    @State private var dragging: ItemID?
 
     var body: some View {
-        VStack(spacing: 0) {
-            MenuBarPreview(model: model)
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-            Form {
-                Section {
-                    ForEach(model.order, id: \.self) { id in
-                        Toggle(isOn: model.shown(id)) {
-                            Label {
-                                Text(SettingsModel.title(id))
-                            } icon: {
-                                Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-                            }
-                        }
-                        .dragToReorder(id, raw: id.rawValue, dragging: $dragging) { model.drop($0, onto: $1) }
-                        .disabled(model.isReplacedByOverview(id))
-                        .contextMenu {
-                            Button("Move Up") { model.move(id, by: -1) }.disabled(!model.canMove(id, by: -1))
-                            Button("Move Down") { model.move(id, by: 1) }.disabled(!model.canMove(id, by: 1))
-                        }
+        Form {
+            Section {
+                MenuBarPreview(model: model)
+            }
+            Section {
+                ReorderRows(model.order, move: model.move(fromOffsets:toOffset:)) { id in
+                    SwitchRow(isOn: model.shown(id)) {
+                        ReorderLabel(SettingsModel.title(id), icon: SettingsPane.item(id).icon)
                     }
-                } header: {
-                    Text("Items")
-                } footer: {
-                    if model.overviewReplacesOthers {
-                        Text("Hidden while Overview replaces them.").foregroundStyle(.secondary)
+                    .contextMenu {
+                        Button("Move Up") { model.move(id, by: -1) }.disabled(!model.canMove(id, by: -1))
+                        Button("Move Down") { model.move(id, by: 1) }.disabled(!model.canMove(id, by: 1))
                     }
                 }
-                Section {
-                    Toggle("Show Battery Percentage", isOn: model.showPercentage)
-                        .disabled(!model.shown(.battery).wrappedValue)
-                    Picker("Label Alignment", selection: model.captionAlignment) {
-                        ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
-                    }
+            } footer: {
+                Text("Drag to reorder, or Command-drag in the menu bar.")
+            }
+            Section {
+                Toggle("Show Battery Percentage", isOn: model.showPercentage)
+                    .disabled(!model.shown(.battery).wrappedValue)
+                Picker("Label Alignment", selection: model.captionAlignment) {
+                    ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
                 }
             }
         }
     }
 }
 
-/// Toggles on the left, the live preview on the right.
-private struct PageWithPreview<Content: View>: View {
-    let model: SettingsModel
-    let id: ItemID
-    @ViewBuilder let content: Content
+/// Rows that drag to reorder, with the system's insertion line. A grouped Form ignores onMove on macOS and its rows
+/// never get drop callbacks, so these sit in a List of their own, sized to its rows, inside the form's section.
+private struct ReorderRows<Item: Hashable, Row: View>: View {
+    static var rowHeight: CGFloat { 40 }
+    let items: [Item]
+    let move: (IndexSet, Int) -> Void
+    let row: (Item) -> Row
+
+    init(_ items: [Item], move: @escaping (IndexSet, Int) -> Void, @ViewBuilder row: @escaping (Item) -> Row) {
+        self.items = items
+        self.move = move
+        self.row = row
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            content
+        List {
+            ForEach(items, id: \.self) { item in
+                row(item)
+                    .frame(height: Self.rowHeight)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10))
+                    .listRowBackground(Color.clear)
+            }
+            .onMove(perform: move)
+        }
+        .listStyle(.plain)
+        .scrollDisabled(true)
+        .scrollContentBackground(.hidden)
+        .environment(\.defaultMinListRowHeight, Self.rowHeight)
+        .frame(height: CGFloat(items.count) * Self.rowHeight)
+        .listRowInsets(EdgeInsets())
+    }
+}
+
+/// The page's first group: the item's label and its real panel, live.
+private struct PreviewSection: View {
+    static let height: CGFloat = 300
+    let model: SettingsModel
+    let id: ItemID
+
+    var body: some View {
+        Section {
             ItemPreview(model: model, id: id)
-                .frame(width: 320)
-                .padding(.vertical, 20)
-                .padding(.trailing, 20)
+                .frame(height: Self.height)
+                .padding(.vertical, 6)
         }
     }
 }
 
 private struct OverviewPage: View {
     let model: SettingsModel
-    @State private var dragging: OverviewMetric?
+
+    /// The tile of the item a stat comes from; battery charge and system power read the Battery and Power items' tiles.
+    static func icon(_ metric: OverviewMetric) -> SettingsIcon {
+        let id: ItemID = metric.source ?? (metric == .battery ? .battery : .power)
+        return SettingsPane.item(id).icon
+    }
 
     var body: some View {
-        PageWithPreview(model: model, id: .overview) {
-            Form {
-                Section {
-                    Toggle("Show in Menu Bar", isOn: model.shown(.overview))
-                    Toggle("Hide Other Items", isOn: model.overviewHidesOthers)
-                        .disabled(!model.shown(.overview).wrappedValue)
-                }
-                Section("Panel") {
-                    Picker("Style", selection: model.overviewStyle) {
-                        ForEach(OverviewStyle.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                Section {
-                    ForEach(model.overviewMetrics, id: \.self) { metric in
-                        let title = metric.title(in: model.overviewStyle.wrappedValue)
-                        Toggle(isOn: model.metricShown(metric)) {
-                            Label {
-                                Text(title)
-                            } icon: {
-                                Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-                            }
-                        }
-                        .dragToReorder(metric, raw: metric.rawValue, dragging: $dragging) { model.dropMetric($0, onto: $1) }
-                        .contextMenu {
-                            Button("Move Up") { model.moveMetric(metric, by: -1) }.disabled(!model.canMoveMetric(metric, by: -1))
-                            Button("Move Down") { model.moveMetric(metric, by: 1) }.disabled(!model.canMoveMetric(metric, by: 1))
-                        }
-                    }
-                } header: {
-                    Text("Contents")
-                } footer: {
-                    Text("Drag to reorder, or Command-drag in the panel.").foregroundStyle(.secondary)
-                }
+        Form {
+            PreviewSection(model: model, id: .overview)
+            Section {
+                Toggle("Show in Menu Bar", isOn: model.shown(.overview))
             }
+            Section {
+                ReorderRows(model.glyphMetrics, move: model.moveGlyphMetrics(fromOffsets:toOffset:)) { metric in
+                    // Only the switch goes dim at a limit; the row still drags.
+                    SwitchRow(isOn: model.glyphShown(metric), isEnabled: model.canToggleGlyph(metric)) {
+                        ReorderLabel(metric.title(in: .bars), icon: Self.icon(metric))
+                    }
+                    .contextMenu {
+                        Button("Move Up") { model.moveGlyphMetric(metric, by: -1) }
+                            .disabled(!model.canMoveGlyphMetric(metric, by: -1))
+                        Button("Move Down") { model.moveGlyphMetric(metric, by: 1) }
+                            .disabled(!model.canMoveGlyphMetric(metric, by: 1))
+                    }
+                }
+            } header: {
+                Text("Menu Bar")
+            } footer: {
+                Text("Up to \(OverviewMetric.glyphLimit) bars.")
+            }
+            Section("Panel") {
+                Picker("Style", selection: model.overviewStyle) {
+                    ForEach(OverviewStyle.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            }
+            Section {
+                ReorderRows(model.overviewMetrics, move: model.moveMetrics(fromOffsets:toOffset:)) { metric in
+                    SwitchRow(isOn: model.metricShown(metric)) {
+                        ReorderLabel(metric.title(in: model.overviewStyle.wrappedValue), icon: Self.icon(metric))
+                    }
+                    .contextMenu {
+                        Button("Move Up") { model.moveMetric(metric, by: -1) }.disabled(!model.canMoveMetric(metric, by: -1))
+                        Button("Move Down") { model.moveMetric(metric, by: 1) }.disabled(!model.canMoveMetric(metric, by: 1))
+                    }
+                }
+            } header: {
+                Text("Contents")
+            } footer: {
+                Text("Drag to reorder, or Command-drag in the panel.")
+            }
+        }
+    }
+}
+
+/// A form row's layout inside a plain List, where a Toggle would otherwise be a checkbox: label left, switch right.
+private struct SwitchRow<Label: View>: View {
+    let isOn: Binding<Bool>
+    var isEnabled = true
+    @ViewBuilder let label: Label
+
+    var body: some View {
+        HStack {
+            label
+            Spacer(minLength: 8)
+            Toggle(isOn: isOn) { label }
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(!isEnabled)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// A row title with a faint drag handle, and the item's icon where it has one.
+private struct ReorderLabel: View {
+    let title: String
+    var icon: SettingsIcon?
+
+    init(_ title: String, icon: SettingsIcon? = nil) {
+        self.title = title
+        self.icon = icon
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.quaternary)
+                .accessibilityHidden(true)
+            icon
+            Text(title)
         }
     }
 }
@@ -455,62 +642,16 @@ private struct ItemPage: View {
     let id: ItemID
 
     var body: some View {
-        PageWithPreview(model: model, id: id) {
-            Form {
-                Section {
-                    Toggle("Show in Menu Bar", isOn: model.shown(id))
-                }
-                Section("Panel") {
-                    ForEach(PanelSectionID.sections(of: id), id: \.self) { section in
-                        Toggle(section.title, isOn: model.sectionShown(section))
-                    }
+        Form {
+            PreviewSection(model: model, id: id)
+            Section {
+                Toggle("Show in Menu Bar", isOn: model.shown(id))
+            }
+            Section("Panel") {
+                ForEach(PanelSectionID.sections(of: id), id: \.self) { section in
+                    Toggle(section.title, isOn: model.sectionShown(section))
                 }
             }
         }
     }
-}
-
-private extension View {
-    /// A grouped Form ignores onMove on macOS, so rows drag and drop themselves.
-    func dragToReorder<ID: Equatable>(_ id: ID, raw: String, dragging: Binding<ID?>,
-                                      drop: @escaping (ID, ID) -> Void) -> some View {
-        contentShape(Rectangle())
-            .onDrag {
-                dragging.wrappedValue = id
-                let provider = NSItemProvider()
-                provider.registerDataRepresentation(for: .boostGaugeItem) { done in
-                    done(Data(raw.utf8), nil)
-                    return nil
-                }
-                return provider
-            }
-            .onDrop(of: [.boostGaugeItem], delegate: RowDropDelegate(target: id, dragging: dragging, drop: drop))
-    }
-}
-
-/// Rows reorder as the drag passes over them, like System Settings; the drop itself only ends the drag.
-private struct RowDropDelegate<ID: Equatable>: DropDelegate {
-    let target: ID
-    @Binding var dragging: ID?
-    let drop: (ID, ID) -> Void
-
-    // `dragging` outlives a cancelled drag, so only our own row type may reorder.
-    func validateDrop(info: DropInfo) -> Bool { dragging != nil && info.hasItemsConforming(to: [.boostGaugeItem]) }
-
-    func dropEntered(info: DropInfo) {
-        guard let dragged = dragging, dragged != target else { return }
-        withAnimation(.snappy) { drop(dragged, target) }
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dragging = nil
-        return true
-    }
-}
-
-private extension UTType {
-    /// Private, so a row can't be dropped into another app as text and foreign drags can't reorder rows.
-    static let boostGaugeItem = UTType(exportedAs: "\(Bundle.main.bundleIdentifier ?? "BoostGauge").item", conformingTo: .data)
 }

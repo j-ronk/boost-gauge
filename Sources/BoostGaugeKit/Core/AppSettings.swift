@@ -22,9 +22,10 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
     private var storedItemOrder: [ItemID]
     private var hiddenSections: Set<PanelSectionID>
     private var storedOverviewStyle: OverviewStyle
-    private var storedOverviewHidesOthers: Bool
     private var storedOverviewOrder: [OverviewMetric]
     private var hiddenOverviewMetrics: Set<OverviewMetric>
+    private var storedGlyphOrder: [OverviewMetric]
+    private var glyphShown: Set<OverviewMetric>
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -40,9 +41,50 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         // Sections are on unless turned off, so settings saved before section toggles existed show everything.
         hiddenSections = Set(PanelSectionID.allCases.filter { defaults.object(forKey: Self.sectionKey($0)) as? Bool == false })
         storedOverviewStyle = defaults.string(forKey: Keys.overviewStyle).flatMap(OverviewStyle.init) ?? .bars
-        storedOverviewHidesOthers = defaults.bool(forKey: Keys.overviewHidesOthers)
         storedOverviewOrder = OverviewOrder.normalized(defaults.stringArray(forKey: Keys.overviewOrder))
         hiddenOverviewMetrics = Set((defaults.stringArray(forKey: Keys.overviewHidden) ?? []).compactMap(OverviewMetric.init))
+        let glyphOrder = OverviewOrder.normalized(defaults.stringArray(forKey: Keys.overviewGlyphOrder), of: OverviewMetric.glyphChoices)
+        storedGlyphOrder = glyphOrder
+        let saved = Set((defaults.stringArray(forKey: Keys.overviewGlyphShown) ?? []).compactMap(OverviewMetric.init))
+            .intersection(OverviewMetric.glyphChoices)
+        glyphShown = Self.capped(saved.isEmpty ? Set(OverviewMetric.defaultGlyph) : saved, in: glyphOrder)
+    }
+
+    /// Keeps the first `glyphLimit` in order.
+    private static func capped(_ chosen: Set<OverviewMetric>, in order: [OverviewMetric]) -> Set<OverviewMetric> {
+        Set(order.filter(chosen.contains).prefix(OverviewMetric.glyphLimit))
+    }
+
+    /// Every stat the glyph can show, left to right, chosen or not.
+    public var overviewGlyphOrder: [OverviewMetric] {
+        get { storedGlyphOrder }
+        set {
+            let next = OverviewOrder.normalized(newValue.map(\.rawValue), of: OverviewMetric.glyphChoices)
+            guard next != storedGlyphOrder else { return }
+            storedGlyphOrder = next
+            defaults.set(next.map(\.rawValue), forKey: Keys.overviewGlyphOrder)
+        }
+    }
+
+    /// The glyph's bars, left to right: one to `glyphLimit` of them.
+    public var overviewGlyphMetrics: [OverviewMetric] { storedGlyphOrder.filter(glyphShown.contains) }
+
+    public func moveOverviewGlyphMetric(_ dragged: OverviewMetric, onto target: OverviewMetric) {
+        overviewGlyphOrder = ItemOrder.live(dragged, onto: target, in: overviewGlyphOrder)
+    }
+
+    public func isGlyphMetricShown(_ metric: OverviewMetric) -> Bool { glyphShown.contains(metric) }
+
+    /// False where the toggle would break the limits: the last bar can't go, and a seventh can't come.
+    public func canToggleGlyphMetric(_ metric: OverviewMetric) -> Bool {
+        guard OverviewMetric.glyphChoices.contains(metric) else { return false }
+        return isGlyphMetricShown(metric) ? glyphShown.count > 1 : glyphShown.count < OverviewMetric.glyphLimit
+    }
+
+    public func setGlyphMetricShown(_ metric: OverviewMetric, _ isShown: Bool) {
+        guard isShown != isGlyphMetricShown(metric), canToggleGlyphMetric(metric) else { return }
+        if isShown { glyphShown.insert(metric) } else { glyphShown.remove(metric) }
+        defaults.set(overviewGlyphMetrics.map(\.rawValue), forKey: Keys.overviewGlyphShown)
     }
 
     /// Top to bottom in every Overview style. Always holds every metric exactly once.
@@ -84,25 +126,6 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         }
     }
 
-    /// Overview stands in for the other items while it's shown. Their own Show in Menu Bar choices are kept, so
-    /// turning this off puts back exactly what was there.
-    public var overviewHidesOthers: Bool {
-        get { storedOverviewHidesOthers }
-        set {
-            guard newValue != storedOverviewHidesOthers else { return }
-            storedOverviewHidesOthers = newValue
-            defaults.set(newValue, forKey: Keys.overviewHidesOthers)
-        }
-    }
-
-    /// True while Overview is shown and set to hide the other items.
-    public var overviewReplacesOthers: Bool { storedOverviewHidesOthers && isShown(.overview) }
-
-    /// Whether the item actually sits in the menu bar: shown, and not standing aside for Overview.
-    public func isInMenuBar(_ id: ItemID) -> Bool {
-        isShown(id) && (id == .overview || !overviewReplacesOthers)
-    }
-
     public func isSectionShown(_ section: PanelSectionID) -> Bool { !hiddenSections.contains(section) }
 
     public func setSectionShown(_ section: PanelSectionID, _ isShown: Bool) {
@@ -122,6 +145,15 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
     }
 
     public var allHidden: Bool { shown.isEmpty }
+
+    /// The last Settings page open, by its storage key.
+    public var settingsPane: String? {
+        get { defaults.string(forKey: Keys.settingsPane) }
+        set {
+            guard newValue != settingsPane else { return }
+            defaults.set(newValue, forKey: Keys.settingsPane)
+        }
+    }
 
     public var refreshSeconds: Int {
         get { storedRefreshSeconds }
@@ -171,9 +203,11 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         static let captionAlignment = "label.captionAlignment"
         static let itemOrder = "item.order"
         static let overviewStyle = "overview.style"
-        static let overviewHidesOthers = "overview.hidesOthers"
         static let overviewOrder = "overview.order"
         static let overviewHidden = "overview.hidden"
+        static let settingsPane = "settings.pane"
+        static let overviewGlyphOrder = "overview.glyph.order"
+        static let overviewGlyphShown = "overview.glyph.shown"
     }
 
     private static func shownKey(_ id: ItemID) -> String { "item.\(id.rawValue).shown" }

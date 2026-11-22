@@ -40,7 +40,7 @@ import BoostGaugeKit
             }
         }
         for page in SettingsFeature.renderPages(ctx) {
-            await save(page.view, "settings-\(page.name)", in: dir)
+            await saveWindow(page.view, "settings-\(page.name)", title: page.title, in: dir)
         }
         if let section = ctx.energyMode?.makeSection() {
             await save(section.padding().frame(width: 300), "energymode", in: dir)
@@ -75,6 +75,45 @@ import BoostGaugeKit
                 print(url.path)
             } catch {
                 FileHandle.standardError.write(Data("render: \(url.path): \(error)\n".utf8))
+                failures += 1
+            }
+        }
+    }
+
+    /// A view that owns its window's chrome (Settings: sidebar under the traffic lights, toolbar title) needs a real
+    /// titled window. This one sits far off every screen and is never made key; its frame view draws the chrome too.
+    private static func saveWindow(_ view: some View, _ name: String, title: String, in dir: URL) async {
+        for scheme in [ColorScheme.light, .dark] {
+            let suffix = scheme == .dark ? "dark" : "light"
+            let url = dir.appendingPathComponent("\(name)-\(suffix).png")
+            let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+            let controller = NSHostingController(rootView: view.environment(\.colorScheme, scheme))
+            controller.sizingOptions = [.preferredContentSize]
+            // The toolbar and title come from SwiftUI, as in a scene's own window.
+            controller.sceneBridgingOptions = [.toolbars, .title]
+            let window = OffscreenWindow(contentViewController: controller)
+            window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+            window.isReleasedWhenClosed = false
+            window.appearance = appearance
+            window.title = title
+            window.setFrameOrigin(NSPoint(x: -30_000, y: -30_000))
+            window.orderFront(nil)
+            try? await Task.sleep(for: .milliseconds(900))
+            // The frame view holds the titlebar, traffic lights and toolbar as well as the content.
+            let frameView = window.contentView?.superview ?? window.contentView
+            var written = false
+            if let frameView, let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds) {
+                frameView.cacheDisplay(in: frameView.bounds, to: rep)
+                if let png = rep.representation(using: .png, properties: [:]) {
+                    written = (try? png.write(to: url)) != nil
+                }
+            }
+            window.orderOut(nil)
+            window.close()
+            if written {
+                print(url.path)
+            } else {
+                FileHandle.standardError.write(Data("render: \(name)-\(suffix) window capture failed\n".utf8))
                 failures += 1
             }
         }
@@ -141,4 +180,9 @@ private struct DemoLabels: View {
             StackedLabel(caption: "POWER", value: "102W", widest: "188W")
         }
     }
+}
+
+/// Stays exactly where it's put: a titled window is otherwise pulled back onto a screen when ordered in.
+private final class OffscreenWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }

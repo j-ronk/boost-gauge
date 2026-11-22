@@ -51,7 +51,7 @@ public enum ItemOrder {
 
     /// `order` with its shown items rearranged to `shown`, the order they now have on screen. Hidden items keep
     /// their places, so showing one again puts it back where it was.
-    public static func reordering(_ order: [ItemID], shownAs shown: [ItemID]) -> [ItemID] {
+    public static func reordering<T: Hashable>(_ order: [T], shownAs shown: [T]) -> [T] {
         let members = Set(shown)
         guard members.count == shown.count, members.isSubset(of: order) else { return order }
         var next = shown.makeIterator()

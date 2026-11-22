@@ -25,8 +25,6 @@ struct OverviewReading: Equatable {
     static let sparkLength = 20
 
     private(set) var reading = OverviewReading()
-    /// The menu bar glyph's bar heights. Kept apart from `reading` so the label only redraws when a bar moves.
-    private(set) var glyph = OverviewGlyph.heights(cpu: nil, gpu: nil, memory: nil)
     private(set) var sparks: [OverviewMetric: [Double]] = [:]
     var cores: [CoreLoad] = []
     var topProcesses: [ProcessRow]?
@@ -40,8 +38,6 @@ struct OverviewReading: Equatable {
     /// Observable notifies on every write, equal or not, so unchanged values aren't written back.
     func update(_ next: OverviewReading) {
         if next != reading { reading = next }
-        let heights = OverviewGlyph.heights(cpu: next.cpu, gpu: next.gpu, memory: next.memory?.usedPercent)
-        if heights != glyph { glyph = heights }
     }
 
     /// Adds the current value of each metric in `rows` to its sparkline.
@@ -119,6 +115,11 @@ enum OverviewText {
 
     static func upload(_ r: NetworkRate?, _ unit: NetworkUnit) -> String {
         r.map { "↑ " + NetworkCounters.rateText($0.up, unit: unit) } ?? "↑ —"
+    }
+
+    /// What a glyph bar stands for, read out by VoiceOver: Disk's bar is how full it is.
+    static func glyphValue(_ metric: OverviewMetric, _ r: OverviewReading) -> String {
+        metric == .disk ? diskUsed(r.disk) : rowValue(metric, r)
     }
 
     /// The List row's figure, at the right.

@@ -40,22 +40,47 @@ struct SettingsViewTests {
         #expect(AppSettings(defaults: suite.reopen()).itemOrder == ctx.settings.itemOrder)
     }
 
-    @Test func dropSavesOrder() {
+    /// What the Menu Bar list's onMove calls when a row is dragged.
+    @Test func draggingARowSavesTheOrder() {
         let suite = TestDefaults()
         let (model, ctx) = makeModel(suite)
-        model.drop(.battery, onto: .disk)
-        #expect(ctx.settings.itemOrder == [.overview, .cpu, .gpu, .memory, .temps, .network, .disk, .battery, .power])
+        // Battery (index 1) dragged to the end of the list.
+        model.move(fromOffsets: IndexSet(integer: 1), toOffset: 9)
+        #expect(ctx.settings.itemOrder == [.overview, .cpu, .gpu, .memory, .temps, .network, .disk, .power, .battery])
         #expect(suite.defaults.stringArray(forKey: "item.order") == ctx.settings.itemOrder.map(\.rawValue))
-        model.drop(.power, onto: .cpu)
-        #expect(ctx.settings.itemOrder == [.overview, .power, .cpu, .gpu, .memory, .temps, .network, .disk, .battery])
         #expect(AppSettings(defaults: suite.reopen()).itemOrder == ctx.settings.itemOrder)
     }
 
-    @Test func dropOnSelfWritesNothing() {
+    @Test func pageHistoryWalksBackAndForward() {
+        var history = PaneHistory(.general)
+        #expect(!history.canGoBack && !history.canGoForward)
+        history.go(to: .menuBar)
+        history.go(to: .item(.cpu))
+        history.go(to: .item(.cpu))
+        #expect(history.visited == [.general, .menuBar, .item(.cpu)])
+        history.back()
+        #expect(history.current == .menuBar && history.canGoForward)
+        history.back()
+        history.back()
+        #expect(history.current == .general)
+        history.forward()
+        // A new page drops what was ahead.
+        history.go(to: .item(.disk))
+        #expect(history.visited == [.general, .menuBar, .item(.disk)])
+        #expect(!history.canGoForward)
+    }
+
+    @Test func settingsReopensOnTheLastPage() {
         let suite = TestDefaults()
         let (model, _) = makeModel(suite)
-        model.drop(.cpu, onto: .cpu)
-        #expect(suite.defaults.object(forKey: "item.order") == nil)
+        #expect(model.lastPane == nil)
+        model.lastPane = .item(.temps)
+        #expect(SettingsModel(AppContext(settings: AppSettings(defaults: suite.reopen()), powerSource: PowerSourceMonitor(initial: .adapter)),
+                              loginItem: .inert).lastPane == .item(.temps))
+        for pane in [SettingsPane.general, .menuBar] + SettingsPane.items.map(SettingsPane.item) {
+            #expect(SettingsPane(storageKey: pane.storageKey) == pane)
+        }
+        #expect(SettingsPane(storageKey: "bogus") == nil)
     }
 
     @Test func moveUpAndDownStopAtTheEnds() {

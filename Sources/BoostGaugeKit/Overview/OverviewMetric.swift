@@ -34,6 +34,34 @@ public enum OverviewMetric: String, CaseIterable, Sendable {
         }
     }
 
+    /// The stats a menu bar bar can show: each fills naturally from 0 to 100 (temperatures as °C). Network and
+    /// System Power are left out: neither has a ceiling to fill towards.
+    static let glyphChoices: [OverviewMetric] = [.cpu, .gpu, .memory, .disk, .cpuTemp, .gpuTemp, .batteryTemp, .hottest, .battery]
+    static let defaultGlyph: [OverviewMetric] = [.cpu, .gpu, .memory]
+    /// Bars beyond this crowd the menu bar.
+    public static let glyphLimit = 6
+
+    /// The bar's fill, 0…100. Nil for a stat with no scale, or no reading yet.
+    func glyphLevel(_ r: OverviewReading) -> Double? {
+        switch self {
+        case .cpu, .gpu, .memory, .disk, .cpuTemp, .gpuTemp, .batteryTemp, .hottest, .battery: sparkValue(r)
+        case .network, .systemPower: nil
+        }
+    }
+
+    /// The item whose reading the metric copies. Battery charge and System Power come from Overview's own battery read.
+    var source: ItemID? {
+        switch self {
+        case .cpu: .cpu
+        case .gpu: .gpu
+        case .memory: .memory
+        case .disk: .disk
+        case .cpuTemp, .gpuTemp, .batteryTemp, .hottest: .temps
+        case .network: .network
+        case .battery, .systemPower: nil
+        }
+    }
+
     /// The value the List row's sparkline follows.
     func sparkValue(_ r: OverviewReading) -> Double? {
         switch self {
@@ -65,11 +93,12 @@ public extension OverviewStyle {
 
 /// The user's top-to-bottom order of Overview metrics, shared by every style.
 public enum OverviewOrder {
-    /// Drops unknown and repeated metrics, then appends any missing one in declaration order.
-    public static func normalized(_ raw: [String]?) -> [OverviewMetric] {
+    /// Drops unknown, repeated and out-of-place metrics, then appends any missing one in `all`'s order.
+    public static func normalized(_ raw: [String]?, of all: [OverviewMetric] = OverviewMetric.allCases) -> [OverviewMetric] {
         var seen = Set<OverviewMetric>()
-        let known = (raw ?? []).compactMap(OverviewMetric.init(rawValue:)).filter { seen.insert($0).inserted }
-        return known + OverviewMetric.allCases.filter { !seen.contains($0) }
+        let allowed = Set(all)
+        let known = (raw ?? []).compactMap(OverviewMetric.init(rawValue:)).filter { allowed.contains($0) && seen.insert($0).inserted }
+        return known + all.filter { !seen.contains($0) }
     }
 
     /// Whether Bars can head its rows by group: every group's visible metrics sit together.

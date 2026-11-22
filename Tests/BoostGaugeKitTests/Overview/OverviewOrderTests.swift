@@ -147,9 +147,26 @@ struct OverviewSettingsPageTests {
         #expect(!model.canMoveMetric(.network, by: 1))
     }
 
-    @Test func dragInSettingsUsesTheSameMove() {
+    /// What the Contents list's onMove calls: offsets count the style's metrics only.
+    @Test func draggingAContentsRowKeepsOtherStylesMetricsInPlace() {
         let (model, ctx) = makeModel()
-        model.dropMetric(.network, onto: .cpu)
+        model.overviewStyle.wrappedValue = .tiles
+        let bars = ctx.settings.overviewOrder.filter { !OverviewStyle.tiles.metrics.contains($0) }
+        // Network, last of seven, dragged to the top.
+        model.moveMetrics(fromOffsets: IndexSet(integer: 6), toOffset: 0)
+        #expect(model.overviewMetrics == [.network, .cpu, .gpu, .memory, .disk, .hottest, .battery])
+        #expect(ctx.settings.overviewOrder.filter { !OverviewStyle.tiles.metrics.contains($0) } == bars)
         #expect(ctx.settings.overviewOrder.first == .network)
+    }
+
+    @Test func draggingAGlyphRowMovesItsBar() {
+        let (model, ctx) = makeModel()
+        // Memory (third) dragged to the front.
+        model.moveGlyphMetrics(fromOffsets: IndexSet(integer: 2), toOffset: 0)
+        #expect(ctx.settings.overviewGlyphMetrics == [.memory, .cpu, .gpu])
+        #expect(model.canMoveGlyphMetric(.memory, by: 1))
+        #expect(!model.canMoveGlyphMetric(.memory, by: -1))
+        model.moveGlyphMetric(.memory, by: 1)
+        #expect(ctx.settings.overviewGlyphMetrics == [.cpu, .memory, .gpu])
     }
 }
