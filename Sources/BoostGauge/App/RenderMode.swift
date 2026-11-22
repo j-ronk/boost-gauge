@@ -32,6 +32,13 @@ import BoostGaugeKit
             for item in items { item.tick(now: .now) }
         }
 
+        if CommandLine.arguments.contains("--real-windows") {
+            for page in SettingsFeature.renderPages(ctx) {
+                await showRealWindow(page.view, "settings-\(page.name)-real", title: page.title, in: dir)
+            }
+            return failures == 0
+        }
+
         for item in items {
             for variant in await item.renderVariants() {
                 let base = "\(item.id.rawValue)-\(variant.name)"
@@ -119,6 +126,42 @@ import BoostGaugeKit
         }
     }
 
+    /// `--render <dir> --real-windows`: Settings pages in real on-screen windows, for the parts offscreen drawing
+    /// misses (sidebar glass). Each window goes to the very back, is never key or main, and closes as soon as the
+    /// shell reading stdout has captured it with `screencapture -l` (this process has no screen recording access).
+    private static func showRealWindow(_ view: some View, _ name: String, title: String, in dir: URL) async {
+        for scheme in [ColorScheme.light, .dark] {
+            let suffix = scheme == .dark ? "dark" : "light"
+            let url = dir.appendingPathComponent("\(name)-\(suffix).png")
+            try? FileManager.default.removeItem(at: url)
+            let controller = NSHostingController(rootView: view.environment(\.colorScheme, scheme))
+            controller.sizingOptions = [.preferredContentSize]
+            controller.sceneBridgingOptions = [.toolbars, .title]
+            let window = BackgroundWindow(contentViewController: controller)
+            window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+            window.title = title
+            window.center()
+            window.orderBack(nil)
+            try? await Task.sleep(for: .milliseconds(700))
+            FileHandle.standardOutput.write(Data("capture \(window.windowNumber) \(url.path)\n".utf8))
+            var waited = 0
+            while !FileManager.default.fileExists(atPath: url.path), waited < 40 {
+                try? await Task.sleep(for: .milliseconds(50))
+                waited += 1
+            }
+            // screencapture creates the file before it finishes writing.
+            try? await Task.sleep(for: .milliseconds(150))
+            window.orderOut(nil)
+            window.close()
+            if !FileManager.default.fileExists(atPath: url.path) {
+                FileHandle.standardError.write(Data("render: \(name)-\(suffix) not captured\n".utf8))
+                failures += 1
+            }
+        }
+    }
+
     /// Hosts the view in an offscreen window and snapshots it. Unlike ImageRenderer this draws real AppKit-backed
     /// controls (buttons, segmented pickers, forms); only the glass material itself is missing.
     private static func snapshot(_ view: some View, _ scheme: ColorScheme) async -> NSBitmapImageRep? {
@@ -185,4 +228,10 @@ private struct DemoLabels: View {
 /// Stays exactly where it's put: a titled window is otherwise pulled back onto a screen when ordered in.
 private final class OffscreenWindow: NSWindow {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+}
+
+/// Never takes focus: it can't become key or main, so it never pulls the app or the keyboard forward.
+private final class BackgroundWindow: NSWindow {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }
