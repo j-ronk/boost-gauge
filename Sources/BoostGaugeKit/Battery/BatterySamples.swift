@@ -191,7 +191,10 @@ import SwiftUI
     static func history(for sample: Sample, now: Date) -> [ChargeSample] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: now)
-        func at(_ day: Date, _ hours: Double) -> Date { day.addingTimeInterval((hours * 60).rounded() * 60) }
+        func at(_ day: Date, _ hours: Double) -> Date {
+            let minutes = Int((hours * 60).rounded())
+            return cal.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day)!
+        }
         var t = Timeline(date: at(cal.date(byAdding: .day, value: -days.count, to: today)!, 7.75), percent: 80,
                          rng: SampleRandom(seed: 2026))
         for (i, day) in days.enumerated() {

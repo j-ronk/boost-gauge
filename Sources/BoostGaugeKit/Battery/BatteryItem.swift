@@ -81,7 +81,8 @@ struct EnergyUser: Identifiable {
     var fans: [FanReading] = []
     var powerHistory = PowerHistory()
     var historyRange: HistoryRange = .day {
-        didSet { reloadHistory() }
+        // Render samples carry a history pinned to their own clock; reloading against the real one would empty the chart.
+        didSet { reloadHistory(now: history == nil ? historyNow : .now) }
     }
     private(set) var historySegments: [[ChargeSample]] = []
     private(set) var historyNow: Date

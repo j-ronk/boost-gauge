@@ -110,6 +110,14 @@ struct BatterySamplesTests {
         #expect(steps.contains { $0 > 0.8 }, "at least one sudden jump")
     }
 
+    @Test func switchingRangeKeepsTheSampleClock() {
+        let m = BatterySamples.model(sample("charging-34"), now: raw)
+        m.historyRange = .tenDays
+        #expect((9...11).contains(m.historySegments.count))
+        m.historyRange = .day
+        #expect(m.historySegments.count == 2)
+    }
+
     @Test func renderNowIsAMidAfternoonInThePast() {
         let r = BatterySamples.renderNow(raw)
         #expect(r <= raw)
