@@ -43,6 +43,7 @@ import BoostGaugeKit
         if let section = ctx.energyMode?.makeSection() {
             await save(section.padding().frame(width: 300), "energymode", in: dir)
         }
+        await save(ControlSamples(), "controls", in: dir)
         await save(DemoPanel(), "demo-panel", in: dir)
         await save(menuBarStrip(DemoLabels()), "demo-labels", in: dir)
         return failures == 0

@@ -57,14 +57,20 @@ struct HistorySection: View {
 
     var body: some View {
         PanelSection("History") {
-            Picker("Range", selection: $model.historyRange) {
-                ForEach(HistoryRange.allCases, id: \.self) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
+            HistoryRangePicker(selection: $model.historyRange)
             HistoryChart(segments: model.historySegments, range: model.historyRange, now: model.historyNow)
         }
+    }
+}
+
+struct HistoryRangePicker: View {
+    @Binding var selection: HistoryRange
+
+    var body: some View {
+        CapsulePicker(title: "History Range", selection: Binding(get: { selection }, set: { if let r = $0 { selection = r } }),
+                      options: HistoryRange.allCases.map { .init(value: $0, title: $0.title) },
+                      height: 20, fillsWidth: false)
+            .font(.callout)
     }
 }
 
