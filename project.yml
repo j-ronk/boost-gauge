@@ -24,6 +24,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/BoostGauge
+      - path: Design/icon/AppIcon.icon
+        buildPhase: resources
     postCompileScripts:
       # SMAppService finds the daemon by this file name, so it carries the helper's bundle ID.
       - name: Install launchd plist
@@ -51,6 +53,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BOOSTGAUGE_APP_BUNDLE_ID)
         PRODUCT_NAME: BoostGauge
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: Config/Identity-Info.plist
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_CFBundleDisplayName: Boost Gauge
