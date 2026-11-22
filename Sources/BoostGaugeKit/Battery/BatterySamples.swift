@@ -33,7 +33,8 @@ import SwiftUI
     }
 
     static let all: [Sample] = [
-        Sample(name: "charging-34", snapshot: make(34, onAC: true, charging: true, toFull: 42, mV: 11_900, mA: 2_600, load: 18.2, adapterIn: 49.6)),
+        // 66% of 7,513 mAh at 2.6 A is about 1:54 to full.
+        Sample(name: "charging-34", snapshot: make(34, onAC: true, charging: true, toFull: 114, mV: 11_900, mA: 2_600, load: 18.2, adapterIn: 49.6)),
         Sample(name: "draining-on-ac-31", snapshot: make(31, onAC: true, charging: true, mV: 10_850, mA: -3_100, load: 121.6, adapterIn: 88.2)),
         Sample(name: "charged-100", snapshot: make(100, onAC: true, charged: true, mV: 13_050, mA: 0, load: 12.0, adapterIn: 12.5)),
         Sample(name: "on-battery-8", snapshot: make(8, onAC: false, toEmpty: 23, mV: 10_400, mA: -1_400, load: 14.6)),

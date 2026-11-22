@@ -59,7 +59,7 @@ struct BatteryItemTests {
         let names = await item.renderVariants().map(\.name)
         #expect(names.starts(with: ["live", "charging-34", "draining-on-ac-31", "charged-100", "on-battery-8", "on-hold-80"]))
         let states = BatterySamples.all.map { ChargeState.classify($0.snapshot) }
-        #expect(states == [.charging(42), .drainingOnAC, .charged, .onBattery(23), .onHold])
+        #expect(states == [.charging(114), .drainingOnAC, .charged, .onBattery(23), .onHold])
     }
 
     @Test func labelContentOnlyChangesWithIcon() {
