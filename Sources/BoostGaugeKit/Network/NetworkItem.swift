@@ -60,14 +60,20 @@ import SwiftUI
         [RenderVariant("live", label: label, panel: panel), Self.sample(ctx).variant]
     }
 
-    /// Ten minutes of made-up traffic, so the chart's shape and legend can be checked; live renders have two points.
+    /// Ten minutes of everyday traffic, so the chart's shape and legend can be checked; live renders have two points.
+    /// Background trickle, a few page loads, one big download and one upload; seeded so every render matches.
     private static func sample(_ ctx: AppContext) -> (item: NetworkItem, variant: RenderVariant) {
         var received: UInt64 = 0, sent: UInt64 = 0, step = 0
+        var rng = SampleRandom(seed: 11)
+        let pageLoads: Set<Int> = [22, 23, 64, 118, 119, 120, 205, 262, 263]
         let item = NetworkItem(ctx, snapshot: {
             step += 1
-            let wave = (sin(Double(step) / 18) + 1) / 2
-            received += UInt64(2_000_000 * wave + (step % 40 < 6 ? 6_000_000 : 40_000))
-            sent += UInt64(180_000 * (1 - wave) + 12_000)
+            var down = rng.uniform(15_000...70_000), up = rng.uniform(4_000...20_000)
+            if pageLoads.contains(step) { down += rng.uniform(1_500_000...4_000_000); up += rng.uniform(40_000...120_000) }
+            if (140..<172).contains(step) { down += rng.uniform(16_000_000...22_000_000) }
+            if (228..<246).contains(step) { up += rng.uniform(1_800_000...2_600_000) }
+            received += UInt64(down)
+            sent += UInt64(up)
             return ["en0": IfCounters(ibytes: received, obytes: sent)]
         }, readConnection: { NetworkConnection(service: "Wi-Fi", interface: "en0", address: "192.168.1.20") })
         let end = Date.now

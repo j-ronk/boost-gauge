@@ -176,23 +176,36 @@ enum GPUHistory {
         if let value { model.history.append(value, at: now) }
     }
 
+    /// Ten minutes of everyday GPU use for `--render`: mostly idle, short spikes, a video call, then an export
+    /// that pins it at 100% for the last minute and a half.
+    static func sampleHistory(end: Date) -> TimeSeries {
+        var rng = SampleRandom(seed: 7)
+        // (first two-second step, steps, level)
+        let bursts: [(Int, Int, Double)] = [(18, 3, 38), (47, 2, 61), (80, 6, 28), (121, 4, 72), (150, 25, 22), (196, 2, 45),
+                                            (230, 3, 55)]
+        var series = TimeSeries()
+        for i in 0..<300 {
+            var value = 3 + rng.uniform(0...6)
+            if let b = bursts.first(where: { ($0.0..<($0.0 + $0.1)).contains(i) }) {
+                value = b.2 * (1 + rng.uniform(-0.15...0.15))
+            }
+            if i >= 255 { value = i == 299 ? 100 : rng.uniform(91...100) }
+            series.append(value.rounded(), at: end.addingTimeInterval(Double(i - 299) * 2))
+        }
+        return series
+    }
+
     public func renderVariants() async -> [RenderVariant] {
         let busy = GPUModel()
         busy.utilization = 100
-        let start = Date.now.addingTimeInterval(-600)
-        for i in 0..<300 {
-            let t = Double(i)
-            // A gap in the middle shows the chart breaking the line across a sleep.
-            if (140..<170).contains(i) { continue }
-            busy.history.append(min(100, max(0, 50 + 40 * sin(t / 20) + Double(i % 7))), at: start.addingTimeInterval(t * 2))
-        }
+        for p in Self.sampleHistory(end: .now).points { busy.history.append(p.value, at: p.date) }
         busy.memoryBytes = 2_576_980_378
         busy.temperature = 61.4
         busy.cores = 32
         busy.topApps = [
-            GPUAppRow(id: "a", name: "WindowServer", icon: NSWorkspace.shared.icon(for: .applicationBundle), percent: 41),
-            GPUAppRow(id: "b", name: "Safari", icon: NSWorkspace.shared.icon(forFile: "/Applications/Safari.app"), percent: 23),
-            GPUAppRow(id: "c", name: "Final Cut Pro", icon: NSWorkspace.shared.icon(for: .applicationBundle), percent: 9),
+            GPUAppRow(id: "a", name: "Final Cut Pro", icon: NSWorkspace.shared.icon(for: .applicationBundle), percent: 68),
+            GPUAppRow(id: "b", name: "WindowServer", icon: NSWorkspace.shared.icon(for: .applicationBundle), percent: 19),
+            GPUAppRow(id: "c", name: "Safari", icon: NSWorkspace.shared.icon(forFile: "/Applications/Safari.app"), percent: 6),
         ]
         // Nothing drawing: one dim "None" row.
         let empty = GPUModel()

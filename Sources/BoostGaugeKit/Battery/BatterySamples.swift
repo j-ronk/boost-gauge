@@ -43,41 +43,195 @@ import SwiftUI
     /// One spinning and one idle fan, so renders show both the rpm and "Off" forms.
     static let fans = [FanReading(index: 0, rpm: 3454, min: 1200, max: 6000), FanReading(index: 1, rpm: 0, min: 1200, max: 6000)]
 
-    /// Ten minutes of gently varying watts around the sample's reading, so renders show the chart.
+    /// Ten minutes of step-like load: plateaus, a burst, a brief dip, a little noise, ending on the sample's reading.
+    /// A charging sample was plugged in five minutes ago, so before that the battery line tracks the system line.
     static func powerHistory(_ s: BatterySnapshot, now: Date = .now) -> PowerHistory {
+        var rng = SampleRandom(seed: UInt64(s.percent))
+        let load = s.systemLoadW ?? 10
+        let volts = Double(s.voltage_mV) / 1000
+        let pluggedInAt: Double? = s.onAC && s.amperage_mA > 0 ? -300 : nil
+        // (ten-second steps, multiple of the final load)
+        let script: [(Int, Double)] = [(6, 0.55), (5, 0.7), (1, 0.4), (7, 0.6), (9, 2.3), (4, 1.6), (8, 0.75), (1, 0.5),
+                                       (6, 0.9), (14, 1.0)]
+        let multiples = script.flatMap { Array(repeating: $0.1, count: $0.0) }
+        // A Mac already near its limit can't burst much higher, so heavy loads keep their steps close together.
+        let spread = load > 60 ? 0.15 : 1
         var h = PowerHistory()
-        let base = s.systemLoadW ?? 10
-        for i in stride(from: 600, through: 0, by: -10) {
+        var previous = load * (1 + (multiples[0] - 1) * spread)
+        for (i, multiple) in multiples.enumerated() {
+            let offset = Double(i * 10 - 600)
+            let date = now.addingTimeInterval(offset)
+            guard offset < 0 else { h.add(s, at: date); break }
+            let level = load * (1 + (multiple - 1) * spread) * (1 + rng.uniform(-0.025...0.025))
+            let onAC = s.onAC && offset >= (pluggedInAt ?? -.infinity)
+            let batteryW: Double
+            if !onAC {
+                // The battery reading lags the system one by a sample.
+                batteryW = -(0.85 * level + 0.15 * previous) * (1 + rng.uniform(-0.03...0.03))
+            } else if s.amperage_mA > 0 {
+                batteryW = s.batteryW * (1 + rng.uniform(-0.02...0.02))
+            } else if s.amperage_mA < 0 {
+                batteryW = (s.adapterInW ?? 0) - level
+            } else {
+                batteryW = 0
+            }
             var p = s
-            p.systemLoadW = max(2, base * (1 + 0.35 * sin(Double(i) / 45)))
-            h.add(p, at: now.addingTimeInterval(-Double(i)))
+            p.onAC = onAC
+            p.systemLoadW = level
+            p.amperage_mA = Int((batteryW / volts * 1000).rounded())
+            h.add(p, at: date)
+            previous = level
         }
         return h
     }
 
     static func model(_ sample: Sample, now: Date = .now) -> BatteryModel {
-        let m = BatteryModel(history: nil, fixedHistory: history(endingAt: sample.snapshot.percent, now: now), now: now)
+        let at = renderNow(now)
+        let m = BatteryModel(history: nil, fixedHistory: history(for: sample, now: at), now: at)
         m.snapshot = sample.snapshot
         m.users = users
         m.usersLoaded = true
         m.fans = fans
-        m.powerHistory = powerHistory(sample.snapshot, now: now)
+        m.powerHistory = powerHistory(sample.snapshot, now: at)
         return m
     }
 
-    /// A day of charge with an overnight sleep gap, so renders show the line breaking.
-    private static func history(endingAt end: Int, now: Date) -> [ChargeSample] {
+    /// The most recent 15:40, so the day chart's overnight sleep lands at night on its axis whenever the render runs.
+    nonisolated static func renderNow(_ now: Date = .now) -> Date {
+        let cal = Calendar.current
+        let today = cal.date(bySettingHour: 15, minute: 40, second: 0, of: now)!
+        return today <= now ? today : cal.date(byAdding: .day, value: -1, to: today)!
+    }
+
+    /// One charge reading a minute, as the history file keeps them, built forward through the day.
+    private struct Timeline {
+        var date: Date
+        var percent: Double
+        var rng: SampleRandom
         var out: [ChargeSample] = []
-        for m in stride(from: 24 * 60, through: 14 * 60, by: -5) {
-            let t = Double(24 * 60 - m) / 600
-            out.append(ChargeSample(date: now.addingTimeInterval(-Double(m) * 60), percent: Int(95 - 40 * t), charging: false))
+
+        mutating func emit(charging: Bool) {
+            out.append(ChargeSample(date: date, percent: Int(percent.rounded()), charging: charging))
         }
-        for m in stride(from: 9 * 60, through: 0, by: -5) {
-            let t = Double(9 * 60 - m) / Double(9 * 60)
-            let p = t < 0.4 ? 50 + Int(100 * t) : 90 - Int(Double(90 - end) * (t - 0.4) / 0.6)
-            out.append(ChargeSample(date: now.addingTimeInterval(-Double(m) * 60), percent: min(100, max(0, p)), charging: t < 0.4))
+
+        /// On the charger at 80% or full, or a sample that's done.
+        mutating func hold(until end: Date) {
+            while date < end {
+                emit(charging: false)
+                date += 60
+            }
         }
-        return out
+
+        /// Asleep: no readings, so the chart breaks its line.
+        mutating func sleep(until end: Date) { date = end }
+
+        /// Uneven slopes landing on `target` at `end`: heavier and lighter stretches, now and then a near-idle one.
+        mutating func move(to target: Double, until end: Date, charging: Bool = false) {
+            var chunks: [(end: Date, weight: Double)] = []
+            var t = date
+            while t < end {
+                let next = min(end, t.addingTimeInterval(rng.uniform(25...70).rounded() * 60))
+                let pace = rng.uniform(0...1) < 0.2 ? 0.1 : rng.uniform(0.5...1.8)
+                chunks.append((next, pace * next.timeIntervalSince(t)))
+                t = next
+            }
+            let total = chunks.reduce(0) { $0 + $1.weight }
+            let change = target - percent
+            for chunk in chunks {
+                let chunkTarget = percent + change * chunk.weight / total
+                let step = (chunkTarget - percent) / max(1, chunk.end.timeIntervalSince(date) / 60)
+                while date < chunk.end {
+                    emit(charging: charging)
+                    percent += step
+                    date += 60
+                }
+                percent = chunkTarget
+            }
+            percent = target
+        }
+
+        /// Quick to about 80%, then slower and slower to the top.
+        mutating func charge(to target: Double) {
+            while percent < target - 0.01 {
+                emit(charging: true)
+                let pace = percent < 80 ? 0.95 - 0.0035 * percent : max(0.12, 0.67 * (100 - percent) / 20)
+                percent = min(target, percent + pace * rng.uniform(0.85...1.15))
+                date += 60
+            }
+            percent = target
+        }
+    }
+
+    /// One past day: off the charger mid-morning, maybe a lunchtime top-up, plugged in at night, asleep at 23:15.
+    private struct Day {
+        var unplug: Double
+        var lunch: Double? = nil
+        var topUp: Double? = nil
+        var evening: Double
+        var plugIn: Double
+        var night: Double = 80
+    }
+
+    /// Ten days, oldest first. The two desk days stay on the charger until evening; one night charges to full.
+    private static let days: [Day] = [
+        Day(unplug: 8.75, lunch: 52, evening: 24, plugIn: 18.5),
+        Day(unplug: 9.25, lunch: 61, topUp: 78, evening: 35, plugIn: 21),
+        Day(unplug: 18.5, evening: 55, plugIn: 22),
+        Day(unplug: 8.5, lunch: 44, topUp: 70, evening: 18, plugIn: 19.25, night: 100),
+        Day(unplug: 10.5, lunch: 88, evening: 52, plugIn: 22.5),
+        Day(unplug: 11, lunch: 70, evening: 41, plugIn: 21.5),
+        Day(unplug: 8.75, lunch: 55, evening: 27, plugIn: 18),
+        Day(unplug: 18, evening: 60, plugIn: 21.75),
+        Day(unplug: 9, lunch: 58, topUp: 80, evening: 30, plugIn: 20.5),
+        Day(unplug: 8.9, lunch: 49, evening: 22, plugIn: 20),
+    ]
+
+    /// Ten days of charge ending on the sample: each morning starts on the charger at 80%, and today ends in the
+    /// sample's state (charging-34 was plugged in at 31% five minutes ago).
+    static func history(for sample: Sample, now: Date) -> [ChargeSample] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        func at(_ day: Date, _ hours: Double) -> Date { day.addingTimeInterval((hours * 60).rounded() * 60) }
+        var t = Timeline(date: at(cal.date(byAdding: .day, value: -days.count, to: today)!, 7.75), percent: 80,
+                         rng: SampleRandom(seed: 2026))
+        for (i, day) in days.enumerated() {
+            let date = cal.date(byAdding: .day, value: i - days.count, to: today)!
+            t.hold(until: at(date, day.unplug))
+            if let lunch = day.lunch {
+                t.move(to: lunch, until: at(date, 12.5))
+                if let topUp = day.topUp { t.charge(to: topUp) }
+            }
+            t.move(to: day.evening, until: at(date, day.plugIn))
+            t.charge(to: day.night)
+            t.hold(until: at(date, 23.25))
+            t.sleep(until: at(cal.date(byAdding: .day, value: 1, to: date)!, 7.75))
+        }
+        switch sample.name {
+        case "charging-34":
+            t.hold(until: at(today, 12.67))
+            t.move(to: 31, until: now.addingTimeInterval(-300))
+            t.move(to: 34, until: now, charging: true)
+        case "draining-on-ac-31":
+            t.hold(until: at(today, 11.5))
+            t.move(to: 40, until: at(today, 14.83))
+            t.move(to: 31, until: now)
+        case "charged-100":
+            t.hold(until: at(today, 9.17))
+            t.move(to: 46, until: at(today, 13.08))
+            t.charge(to: 100)
+        case "on-battery-8":
+            t.hold(until: at(today, 8.67))
+            t.move(to: 8, until: now)
+        default:
+            break
+        }
+        t.hold(until: now)
+        t.date = now
+        t.percent = Double(sample.snapshot.percent)
+        var charging = false
+        if case .charging = ChargeState.classify(sample.snapshot) { charging = true }
+        t.emit(charging: charging)
+        return t.out
     }
 
     private static var users: [EnergyUser] {
