@@ -17,7 +17,14 @@ public enum PanelSectionID: String, CaseIterable, Sendable {
     case gpuTopApps = "gpu.topApps"
     case memoryUsage = "memory.usage"
     case memoryTopApps = "memory.topApps"
-    case tempsSensors = "temps.sensors"
+    case tempsCPU = "temps.cpu"
+    case tempsGPU = "temps.gpu"
+    case tempsMemory = "temps.memory"
+    case tempsSSD = "temps.ssd"
+    case tempsBattery = "temps.battery"
+    case tempsPowerManager = "temps.powerManager"
+    case tempsAirflow = "temps.airflow"
+    case tempsWireless = "temps.wireless"
     case tempsFans = "temps.fans"
     case networkSpeed = "network.speed"
     case networkChart = "network.chart"
@@ -49,7 +56,9 @@ public enum PanelSectionID: String, CaseIterable, Sendable {
         case .cpuTopProcesses: "Top Processes"
         case .gpuTopApps, .memoryTopApps: "Top Apps"
         case .memoryUsage: "Usage"
-        case .tempsSensors: "Sensors"
+        case .tempsCPU, .tempsGPU, .tempsMemory, .tempsSSD, .tempsBattery, .tempsPowerManager, .tempsAirflow,
+             .tempsWireless:
+            TempGroup.allCases.first { $0.section == self }!.title
         case .tempsFans: "Fans"
         case .networkSpeed: "Speed"
         case .networkConnection: "Connection"

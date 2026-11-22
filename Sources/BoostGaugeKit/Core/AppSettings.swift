@@ -9,7 +9,7 @@ public enum CaptionAlignment: String, CaseIterable, Sendable { case center, lead
     public static let allowedRefreshSeconds = [1, 2, 5, 10]
     public static let defaultRefreshSeconds = 2
 
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored let defaults: UserDefaults
     // Mirrors of the stored values so SwiftUI observes changes; UserDefaults itself isn't observable.
     private var shown: Set<ItemID>
     private var storedRefreshSeconds: Int

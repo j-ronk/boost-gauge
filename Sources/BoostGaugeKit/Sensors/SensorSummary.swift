@@ -37,7 +37,7 @@ public enum SensorSummary {
     /// Zero, negative and implausibly high readings are dropped: unpopulated keys read 0 and a few glitch high.
     public static func summarize(_ readings: [(name: String, celsius: Double)]) -> TempSummary {
         var groups: [SensorGroup: [Double]] = [:]
-        for reading in readings where reading.celsius > 0 && reading.celsius <= 150 {
+        for reading in readings where TempCatalog.isValid(reading.celsius) {
             guard let group = group(of: reading.name) else { continue }
             groups[group, default: []].append(reading.celsius)
         }
@@ -65,24 +65,45 @@ public enum SensorSummary {
         return rounded == 0 ? "Off" : "\(rounded.formatted(.number.locale(locale))) rpm"
     }
 
-    /// Every key `group(of:)` knows, probed once to find which this Mac has.
-    static let candidateKeys: [String] =
-        StatsSensorKeys.cpu.sorted() + StatsSensorKeys.gpu.sorted() + (0...3).map { "TB\($0)T" }
+    static let summaryGroups: Set<TempGroup> = [.cpu, .gpu, .battery]
 }
 
-/// Reads this Mac's grouped temperature keys. Discovery runs once (about 100 probes); each later read is one SMC
-/// call per present key, a few milliseconds in all.
+/// Reads this Mac's temperatures. Discovery runs once (a couple of hundred probes); after that the menu bar read is
+/// one SMC call per CPU, GPU and battery key, a few milliseconds in all, and the panel's full read runs only while
+/// it's open, skipping groups whose sections are hidden.
 final class TemperatureReader {
     private let smc: SMC
-    private var keys: [String]?
+    private let chip: ChipInfo
+    private let hid = HIDTemperatures()
+    private var entries: [TempCatalog.Entry]?
 
-    init(smc: SMC) {
+    init(smc: SMC, chip: ChipInfo = .current()) {
         self.smc = smc
+        self.chip = chip
     }
 
+    /// The menu bar's keys are the panel's CPU, GPU and battery rows, so the label and the panel agree.
     func read() -> [(name: String, celsius: Double)] {
-        let keys = self.keys ?? SensorSummary.candidateKeys.filter { smc.read($0) != nil }
-        self.keys = keys
-        return keys.compactMap { key in smc.value(key).map { (key, $0) } }
+        discovered().filter { SensorSummary.summaryGroups.contains($0.group) }
+            .compactMap { e in smc.value(e.key).map { (e.key, $0) } }
+    }
+
+    func readGroups(_ groups: Set<TempGroup>) -> [TempGroupReading] {
+        let entries = discovered()
+        var rows: [(group: TempGroup, sensor: TempSensor)] = entries.filter { groups.contains($0.group) }
+            .compactMap { e in smc.value(e.key).map { (e.group, TempSensor(e.name, $0)) } }
+        if !groups.isDisjoint(with: [.ssd, .battery, .powerManager]) {
+            let hasSSD = entries.contains { $0.group == .ssd }
+            rows += TempCatalog.hidSensors(hid.read(), skipSSD: hasSSD).filter { groups.contains($0.group) }
+        }
+        return TempCatalog.group(rows)
+    }
+
+    private func discovered() -> [TempCatalog.Entry] {
+        if let entries { return entries }
+        let present = Set(TempCatalog.candidateKeys(chip).filter { smc.read($0) != nil })
+        let found = TempCatalog.entries(present: present, chip: chip)
+        entries = found
+        return found
     }
 }
