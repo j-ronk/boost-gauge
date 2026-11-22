@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct CoreLoad: Identifiable {
     let id: Int
@@ -19,8 +20,25 @@ struct ProcessRow: Identifiable {
     var total: Double?
     var cores: [CoreLoad] = []
     var topProcesses: [ProcessRow]?
+    var temperature: Double?
+    var hottestSensor: Double?
+    var temperatureUnit = TemperatureUnit.celsius
+    var efficiencyCores = 0
+    var performanceCores = 0
 
     var labelValue: String { total.map(Format.percent) ?? "—" }
+    var temperatureText: String { temperature.map { SensorSummary.format($0, temperatureUnit) } ?? "—" }
+    var hottestSensorText: String { hottestSensor.map { SensorSummary.format($0, temperatureUnit) } ?? "—" }
+    var coresText: String { CPUCores.text(efficiency: efficiencyCores, performance: performanceCores) }
+}
+
+enum CPUCores {
+    /// "4 Efficiency · 6 Performance"; a Mac without the perflevel split (Intel) shows its plain core count.
+    static func text(efficiency: Int, performance: Int) -> String {
+        if efficiency > 0, performance > 0 { return "\(efficiency) Efficiency · \(performance) Performance" }
+        let total = efficiency + performance
+        return total > 0 ? "\(total)" : "—"
+    }
 }
 
 @MainActor public final class CPUItem: BoostGaugeItem {
@@ -29,6 +47,7 @@ struct ProcessRow: Identifiable {
 
     private let settings: AppSettings
     private let readTicks: () -> [CoreTicks]?
+    private let readTemperatures: () -> TempSummary
     private let kinds: [CoreKind]
     private let settleDelay: Duration?
     private var previous: [CoreTicks]?
@@ -38,16 +57,27 @@ struct ProcessRow: Identifiable {
     private var processBaseline: (snapshot: [ProcessCPUTime], at: ContinuousClock.Instant)?
 
     public convenience init(_ ctx: AppContext) {
-        self.init(ctx, readTicks: CPUTicks.read, kinds: CPULoad.coreKindsOfThisMac(), settleDelay: .milliseconds(500))
+        // Created on the first panel open; key discovery probes the SMC about 100 times.
+        var temperatures: TemperatureReader?
+        self.init(ctx, readTicks: CPUTicks.read, readTemperatures: {
+            let reader = temperatures ?? TemperatureReader(smc: SMC())
+            temperatures = reader
+            return SensorSummary.summarize(reader.read())
+        }, kinds: CPULoad.coreKindsOfThisMac(), settleDelay: .milliseconds(500))
     }
 
     /// `settleDelay`: after a fresh baseline, take the second read this soon instead of a whole interval later,
     /// so the label isn't "—" for seconds after launch or re-show.
-    init(_ ctx: AppContext, readTicks: @escaping () -> [CoreTicks]?, kinds: [CoreKind] = [], settleDelay: Duration? = nil) {
+    init(_ ctx: AppContext, readTicks: @escaping () -> [CoreTicks]?,
+         readTemperatures: @escaping () -> TempSummary = { TempSummary() },
+         kinds: [CoreKind] = [], settleDelay: Duration? = nil) {
         settings = ctx.settings
         self.readTicks = readTicks
+        self.readTemperatures = readTemperatures
         self.kinds = kinds
         self.settleDelay = settleDelay
+        model.efficiencyCores = kinds.filter { $0 == .efficiency }.count
+        model.performanceCores = kinds.filter { $0 == .performance }.count
         watcher = ShownWatcher(settings: ctx.settings, id: .cpu) { [weak self] in self?.resetBaseline() }
     }
 
@@ -57,7 +87,19 @@ struct ProcessRow: Identifiable {
     }
 
     public var panel: AnyView {
-        AnyView(CPUPanel(model: model).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshTop() })
+        AnyView(CPUPanel(model: model).refreshing(every: .seconds(3)) { [weak self] in
+            self?.refreshDetails()
+            await self?.refreshTop()
+        })
+    }
+
+    /// Temperatures are read only while the panel is open, like the GPU panel's.
+    func refreshDetails() {
+        // Observable notifies on every write, equal or not; skip no-op writes so the panel doesn't redraw.
+        if model.temperatureUnit != settings.temperatureUnit { model.temperatureUnit = settings.temperatureUnit }
+        let summary = readTemperatures()
+        if model.temperature != summary.cpu { model.temperature = summary.cpu }
+        if model.hottestSensor != summary.cpuHottest { model.hottestSensor = summary.cpuHottest }
     }
 
     public func tick(now: Date) {
@@ -90,12 +132,33 @@ struct ProcessRow: Identifiable {
     }
 
     public func renderVariants() async -> [RenderVariant] {
+        refreshDetails()
         await refreshTop()
         return [
             RenderVariant("live", label: label, panel: panel),
+            RenderVariant("sample", label: AnyView(StackedLabel(caption: "CPU", value: "23%", widest: "100%")),
+                          panel: AnyView(CPUPanel(model: Self.sampleModel()))),
             RenderVariant("low", label: AnyView(StackedLabel(caption: "CPU", value: "7%", widest: "100%")), panel: nil),
             RenderVariant("full", label: AnyView(StackedLabel(caption: "CPU", value: "100%", widest: "100%")), panel: nil),
         ]
+    }
+
+    /// A 4E/6P Mac at light load, for `--render`.
+    static func sampleModel() -> CPUModel {
+        let m = CPUModel()
+        m.total = 23
+        let loads: [Double] = [52, 44, 36, 30, 26, 18, 12, 8, 4, 1]
+        m.cores = loads.enumerated().map { CoreLoad(id: $0.offset, percent: $0.element, kind: $0.offset < 4 ? .efficiency : .performance) }
+        m.efficiencyCores = 4
+        m.performanceCores = 6
+        m.temperature = 58.4
+        m.hottestSensor = 66.2
+        m.topProcesses = [
+            ProcessRow(id: 1, name: "Safari", icon: NSWorkspace.shared.icon(forFile: "/Applications/Safari.app"), percent: 12),
+            ProcessRow(id: 2, name: "WindowServer", icon: NSWorkspace.shared.icon(for: .applicationBundle), percent: 6),
+            ProcessRow(id: 3, name: "Mail", icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Mail.app"), percent: 3),
+        ]
+        return m
     }
 
     private func sample() {

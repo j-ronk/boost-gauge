@@ -37,7 +37,7 @@ struct SensorSummaryTests {
             ("TB1T", 30), ("TB2T", 32),        // battery cells
             ("TaLP", 140), ("Tm02", 45),       // airflow, memory: not shown
         ])
-        #expect(s == TempSummary(cpu: 70, gpu: 52, battery: 31, hottest: 80))
+        #expect(s == TempSummary(cpu: 70, gpu: 52, battery: 31, hottest: 80, cpuHottest: 80))
     }
 
     /// M3 files CPU and GPU under the same `Tf` prefix, so grouping must follow Stats' tables, not prefixes.

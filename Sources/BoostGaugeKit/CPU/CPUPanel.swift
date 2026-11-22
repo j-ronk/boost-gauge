@@ -25,6 +25,11 @@ struct CPUPanel: View {
                 .frame(height: 90)
                 .accessibilityLabel("Per-core load")
             }
+            PanelSection("Details") {
+                StatRow("Temperature", model.temperatureText)
+                StatRow("Hottest Sensor", model.hottestSensorText)
+                StatRow("Cores", model.coresText)
+            }
             PanelSection("Top Processes") {
                 if let rows = model.topProcesses {
                     if rows.isEmpty { Text("Idle").foregroundStyle(.secondary) }

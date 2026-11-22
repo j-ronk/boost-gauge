@@ -5,12 +5,16 @@ public struct TempSummary: Equatable, Sendable {
     public var gpu: Double?
     public var battery: Double?
     public var hottest: Double?
+    /// The hottest single CPU die sensor, from the same reads as the `cpu` average.
+    public var cpuHottest: Double?
 
-    public init(cpu: Double? = nil, gpu: Double? = nil, battery: Double? = nil, hottest: Double? = nil) {
+    public init(cpu: Double? = nil, gpu: Double? = nil, battery: Double? = nil, hottest: Double? = nil,
+                cpuHottest: Double? = nil) {
         self.cpu = cpu
         self.gpu = gpu
         self.battery = battery
         self.hottest = hottest
+        self.cpuHottest = cpuHottest
     }
 }
 
@@ -42,7 +46,7 @@ public enum SensorSummary {
             return values.reduce(0, +) / Double(values.count)
         }
         return TempSummary(cpu: average(.cpu), gpu: average(.gpu), battery: average(.battery),
-                           hottest: groups.values.flatMap { $0 }.max())
+                           hottest: groups.values.flatMap { $0 }.max(), cpuHottest: groups[.cpu]?.max())
     }
 
     public static func format(_ celsius: Double, _ unit: TemperatureUnit) -> String {
