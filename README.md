@@ -1,30 +1,47 @@
-# Boost Gauge
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/readme/icon-dark.png">
+    <img src=".github/readme/icon-light.png" width="128" height="128" alt="Boost Gauge icon">
+  </picture>
+</p>
 
-A SwiftUI menu bar system monitor for macOS 27 on Apple Silicon. Each stat (battery, CPU, GPU, memory, temps, network, disk, power) is its own menu bar item that you can show, hide and reorder. Click one to open a detail panel.
+<h1 align="center">Boost Gauge</h1>
 
-**Download** the signed, notarised app from [Releases](../../releases).
+<p align="center">Your Mac's battery, CPU, GPU, memory, temps and network, right in the menu bar.</p>
 
-## Build
+<h3 align="center"><a href="../../releases/latest">Download for Mac</a></h3>
 
-Needs Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/readme/menubar-dark.png">
+    <img src=".github/readme/menubar-light.png" width="640" alt="Boost Gauge stats in the menu bar">
+  </picture>
+</p>
 
-1. Create `Config/Signing.local.xcconfig` (it's gitignored) with your Team ID and a bundle prefix:
-   ```
-   DEVELOPMENT_TEAM = ABCDE12345
-   BOOSTGAUGE_BUNDLE_PREFIX = com.yourname
-   ```
-2. Run `scripts/run.sh --install` to build and install to /Applications, or `scripts/test.sh` to run the tests.
+<p align="center">
+  <picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/battery-dark.png"><img src=".github/readme/battery-light.png" width="270" align="top" alt="Battery panel"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/gpu-dark.png"><img src=".github/readme/gpu-light.png" width="270" align="top" alt="GPU panel"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/temps-dark.png"><img src=".github/readme/temps-light.png" width="270" align="top" alt="Temperatures panel"></picture>
+</p>
 
-Maintainers: `scripts/release.sh 1.0.0` builds the notarised release zip. It needs a Developer ID Application certificate and a `notarytool` keychain profile (`xcrun notarytool store-credentials boostgauge-notary`).
+## What you get
 
-## Energy Mode
+- One menu bar item per stat
+- Show, hide and drag to reorder
+- Click any stat for details
+- Battery health and history
+- Switch Energy Mode in one click
+- Temps and fan speeds
+- Top apps by CPU, GPU and memory
 
-The Battery panel switches Energy Mode through a small root helper that only runs `pmset` and only talks to Boost Gauge signed by the same team. macOS asks you to allow it once in Login Items.
+## Install
 
-Boost Gauge uses a private API and reads the SMC directly, so it won't go on the App Store.
+Needs macOS 27 on Apple Silicon. Open the DMG and drag Boost Gauge to Applications.
+
+If you use Energy Mode, allow the Boost Gauge helper once in System Settings > General > Login Items & Extensions.
 
 ## Credits
 
-Temperature and fan code adapted from [Stats](https://github.com/exelban/stats) (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Temperature and fan code adapted from [Stats](https://github.com/exelban/stats) (MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Boost Gauge is [MIT licensed](LICENSE).
 
-MIT licence.
+Want to build it yourself? See [BUILDING.md](BUILDING.md).
