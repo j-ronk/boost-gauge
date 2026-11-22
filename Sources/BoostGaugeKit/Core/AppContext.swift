@@ -8,6 +8,7 @@ import SwiftUI
     public let scheduler: Scheduler
     public let powerSource: PowerSourceMonitor
     public let slots: MenuBarSlots
+    public let panels = PanelPresence()
     public var energyMode: (any EnergyModeService)?
     public var settingsView: AnyView = AnyView(Text("Boost Gauge").padding())
     public var onLaunch: (() -> Void)?

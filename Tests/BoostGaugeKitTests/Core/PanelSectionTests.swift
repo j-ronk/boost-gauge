@@ -10,7 +10,8 @@ struct PanelSectionTests {
             #expect(section.rawValue.hasPrefix(section.item.rawValue + "."), "\(section)")
             #expect(!section.title.isEmpty)
         }
-        for id in ItemID.allCases {
+        // Overview's page has its own contents list instead of section toggles.
+        for id in ItemID.allCases where id != .overview {
             #expect(!PanelSectionID.sections(of: id).isEmpty, "\(id)")
         }
     }
@@ -47,7 +48,7 @@ struct PanelSectionTests {
         #expect(settings.refreshSeconds == 5)
         #expect(!settings.showBatteryPercentage)
         #expect(settings.temperatureUnit == .fahrenheit)
-        #expect(Array(settings.itemOrder.prefix(2)) == [.gpu, .cpu])
+        #expect(Array(settings.itemOrder.prefix(3)) == [.overview, .gpu, .cpu])
         for section in PanelSectionID.allCases { #expect(settings.isSectionShown(section), "\(section)") }
     }
 

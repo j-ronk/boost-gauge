@@ -44,13 +44,13 @@ import UniformTypeIdentifiers
     public func tick(now: Date) {
         feed(Self.glyphSources + (panelOpen ? Self.panelSources : []), now: now)
         collect(now: now)
-        model.recordSparks(OverviewRow.allCases.filter(isFresh))
+        model.recordSparks(OverviewStyle.list.metrics.filter(isFresh))
     }
 
     public func panelDidOpen() {
         panelOpen = true
         // CPU's process baseline belongs to whichever panel shows the rows; start it fresh, as the CPU panel does.
-        ctx.scheduler.item(.cpu)?.panelDidOpen()
+        if let cpu = ctx.scheduler.item(.cpu) { ctx.panels.opened(cpu) }
         // The glyph sources ticked moments ago; a second tick now would measure a sliver of a second.
         feed(Self.panelSources, now: .now)
         collect(now: .now, freshBattery: true)
@@ -59,7 +59,7 @@ import UniformTypeIdentifiers
     public func panelDidClose() {
         panelOpen = false
         model.topProcesses = nil
-        ctx.scheduler.item(.cpu)?.panelDidClose()
+        if let cpu = ctx.scheduler.item(.cpu) { ctx.panels.closed(cpu) }
     }
 
     /// Every three seconds while the panel is open. Only the List style's open CPU row has rows to sample.
@@ -81,13 +81,13 @@ import UniformTypeIdentifiers
     }
 
     /// Whether a row's figure was read this beat, so its sparkline only gets real samples.
-    private func isFresh(_ row: OverviewRow) -> Bool {
-        switch row {
+    private func isFresh(_ metric: OverviewMetric) -> Bool {
+        switch metric {
         case .cpu, .gpu, .memory: true
-        case .temps: panelOpen || settings.isInMenuBar(.temps)
+        case .cpuTemp, .gpuTemp, .batteryTemp, .hottest: panelOpen || settings.isInMenuBar(.temps)
         case .network: panelOpen || settings.isInMenuBar(.network)
         case .disk: panelOpen || settings.isInMenuBar(.disk)
-        case .battery: readsBattery
+        case .battery, .systemPower: readsBattery
         }
     }
 
@@ -126,6 +126,13 @@ import UniformTypeIdentifiers
             variants.append(RenderVariant("sample-\(style.rawValue)", label: sampleLabel,
                                           panel: AnyView(OverviewPanel(model: sample, style: style))))
         }
+        // A reordered panel: Bars with its groups split goes flat; Tiles keeps Network full width mid-grid.
+        let barsOrder: [OverviewMetric] = [.network, .cpu, .cpuTemp, .gpu, .gpuTemp, .memory, .battery, .systemPower]
+        variants.append(RenderVariant("sample-bars-reordered", label: sampleLabel,
+                                      panel: AnyView(OverviewPanel(model: sample, style: .bars, metrics: barsOrder))))
+        let tilesOrder: [OverviewMetric] = [.cpu, .gpu, .network, .memory, .hottest, .battery]
+        variants.append(RenderVariant("sample-tiles-reordered", label: sampleLabel,
+                                      panel: AnyView(OverviewPanel(model: sample, style: .tiles, metrics: tilesOrder))))
         return variants
     }
 
@@ -157,9 +164,9 @@ import UniformTypeIdentifiers
             ProcessRow(id: 1, name: "Safari", icon: NSWorkspace.shared.icon(forFile: "/Applications/Safari.app"), percent: 12),
             ProcessRow(id: 2, name: "WindowServer", icon: NSWorkspace.shared.icon(for: .applicationBundle), percent: 6),
         ]
-        let sparks: [OverviewRow: [Double]] = [
+        let sparks: [OverviewMetric: [Double]] = [
             .cpu: [24, 28, 36, 31, 26, 30, 33, 29], .gpu: [60, 80, 95, 100, 90, 100, 100, 100],
-            .memory: [46, 47, 47, 48, 48, 49, 49, 49], .temps: [64, 66, 69, 71, 70, 72, 71, 72],
+            .memory: [46, 47, 47, 48, 48, 49, 49, 49], .hottest: [64, 66, 69, 71, 70, 72, 71, 72],
             .battery: [24, 26, 27, 29, 30, 31, 33, 34], .network: [40, 90, 60, 120, 80, 95, 70, 95],
             .disk: [5, 5, 5, 5, 5, 5, 5, 5],
         ]

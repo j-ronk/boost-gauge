@@ -68,6 +68,64 @@ import UniformTypeIdentifiers
 
     var overviewReplacesOthers: Bool { settings.overviewReplacesOthers }
 
+    /// The selected style's metrics in the shared order, shown or not.
+    var overviewMetrics: [OverviewMetric] {
+        let allowed = Set(settings.overviewStyle.metrics)
+        return settings.overviewOrder.filter(allowed.contains)
+    }
+
+    func metricShown(_ metric: OverviewMetric) -> Binding<Bool> {
+        Binding(get: { self.settings.isOverviewMetricShown(metric) }, set: { self.settings.setOverviewMetricShown(metric, $0) })
+    }
+
+    func dropMetric(_ dragged: OverviewMetric, onto target: OverviewMetric) {
+        settings.moveOverviewMetric(dragged, onto: target)
+    }
+
+    /// The neighbour in the list as shown, which skips the metrics the style doesn't use.
+    private func neighbour(of metric: OverviewMetric, by step: Int) -> OverviewMetric? {
+        let list = overviewMetrics
+        guard let index = list.firstIndex(of: metric), list.indices.contains(index + step) else { return nil }
+        return list[index + step]
+    }
+
+    func canMoveMetric(_ metric: OverviewMetric, by step: Int) -> Bool { neighbour(of: metric, by: step) != nil }
+
+    func moveMetric(_ metric: OverviewMetric, by step: Int) {
+        guard let target = neighbour(of: metric, by: step) else { return }
+        settings.moveOverviewMetric(metric, onto: target)
+    }
+
+    // MARK: Previews
+
+    func item(_ id: ItemID) -> (any BoostGaugeItem)? { ctx.scheduler.item(id) }
+
+    /// Left to right, what the menu bar holds now.
+    var menuBarItems: [ItemID] { settings.itemOrder.filter { settings.isInMenuBar($0) && ctx.scheduler.item($0) != nil } }
+
+    func previewOpened(_ id: ItemID) {
+        if let item = item(id) { ctx.panels.opened(item) }
+    }
+
+    func previewClosed(_ id: ItemID) {
+        if let item = item(id) { ctx.panels.closed(item) }
+    }
+
+    /// Ticks the previewed item at the refresh rate while nothing else does, for as long as its page is on screen.
+    func samplePreview(_ id: ItemID) async {
+        while !Task.isCancelled {
+            if previewNeedsTicks(id), let item = item(id) { item.tick(now: .now) }
+            try? await Task.sleep(for: .seconds(settings.refreshSeconds))
+        }
+    }
+
+    /// The scheduler ticks what's in the menu bar, and Overview there ticks its glyph's sources; a second tick
+    /// would measure a sliver of a beat.
+    func previewNeedsTicks(_ id: ItemID) -> Bool {
+        if settings.isInMenuBar(id) { return false }
+        return id == .overview || !(settings.isInMenuBar(.overview) && OverviewItem.glyphSources.contains(id))
+    }
+
     /// The item's switch does nothing while Overview stands in for it.
     func isReplacedByOverview(_ id: ItemID) -> Bool { id != .overview && settings.overviewReplacesOthers }
 
@@ -206,6 +264,8 @@ struct SettingsIcon: View {
 }
 
 struct SettingsView: View {
+    /// Wide enough for a page's toggles beside its 300 pt panel preview.
+    static let size = CGSize(width: 900, height: 620)
     let model: SettingsModel
     @State private var pane: SettingsPane?
 
@@ -235,7 +295,7 @@ struct SettingsView: View {
                 .formStyle(.grouped)
                 .navigationTitle(pane.title)
         }
-        .frame(width: 700, height: 560)
+        .frame(width: SettingsView.size.width, height: SettingsView.size.height)
         .onAppear { model.refreshLoginItem() }
     }
 
@@ -249,7 +309,8 @@ struct SettingsView: View {
         case .general: GeneralPage(model: model)
         case .menuBar: MenuBarPage(model: model)
         case .item(.overview): OverviewPage(model: model)
-        case let .item(id): ItemPage(model: model, id: id)
+        // A new identity per item, so the preview closes one panel and opens the next.
+        case let .item(id): ItemPage(model: model, id: id).id(id)
         }
     }
 }
@@ -288,67 +349,102 @@ private struct MenuBarPage: View {
     @State private var dragging: ItemID?
 
     var body: some View {
-        Form {
-            Section {
-                ForEach(model.order, id: \.self) { id in
-                    Toggle(isOn: model.shown(id)) {
-                        Label {
-                            Text(SettingsModel.title(id))
-                        } icon: {
-                            Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+        VStack(spacing: 0) {
+            MenuBarPreview(model: model)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+            Form {
+                Section {
+                    ForEach(model.order, id: \.self) { id in
+                        Toggle(isOn: model.shown(id)) {
+                            Label {
+                                Text(SettingsModel.title(id))
+                            } icon: {
+                                Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+                            }
+                        }
+                        .dragToReorder(id, raw: id.rawValue, dragging: $dragging) { model.drop($0, onto: $1) }
+                        .disabled(model.isReplacedByOverview(id))
+                        .contextMenu {
+                            Button("Move Up") { model.move(id, by: -1) }.disabled(!model.canMove(id, by: -1))
+                            Button("Move Down") { model.move(id, by: 1) }.disabled(!model.canMove(id, by: 1))
                         }
                     }
-                    .contentShape(Rectangle())
-                    // A grouped Form ignores onMove on macOS, so rows drag and drop themselves.
-                    .onDrag {
-                        dragging = id
-                        let provider = NSItemProvider()
-                        provider.registerDataRepresentation(for: .boostGaugeItem) { done in
-                            done(Data(id.rawValue.utf8), nil)
-                            return nil
-                        }
-                        return provider
-                    }
-                    .onDrop(of: [.boostGaugeItem], delegate: RowDropDelegate(target: id, model: model, dragging: $dragging))
-                    .disabled(model.isReplacedByOverview(id))
-                    .contextMenu {
-                        Button("Move Up") { model.move(id, by: -1) }.disabled(!model.canMove(id, by: -1))
-                        Button("Move Down") { model.move(id, by: 1) }.disabled(!model.canMove(id, by: 1))
+                } header: {
+                    Text("Items")
+                } footer: {
+                    if model.overviewReplacesOthers {
+                        Text("Hidden while Overview replaces them.").foregroundStyle(.secondary)
                     }
                 }
-            } header: {
-                Text("Items")
-            } footer: {
-                if model.overviewReplacesOthers {
-                    Text("Hidden while Overview replaces them.").foregroundStyle(.secondary)
-                }
-            }
-            Section {
-                Toggle("Show Battery Percentage", isOn: model.showPercentage)
-                    .disabled(!model.shown(.battery).wrappedValue)
-                Picker("Label Alignment", selection: model.captionAlignment) {
-                    ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                Section {
+                    Toggle("Show Battery Percentage", isOn: model.showPercentage)
+                        .disabled(!model.shown(.battery).wrappedValue)
+                    Picker("Label Alignment", selection: model.captionAlignment) {
+                        ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                    }
                 }
             }
         }
     }
 }
 
-private struct OverviewPage: View {
+/// Toggles on the left, the live preview on the right.
+private struct PageWithPreview<Content: View>: View {
     let model: SettingsModel
+    let id: ItemID
+    @ViewBuilder let content: Content
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Show in Menu Bar", isOn: model.shown(.overview))
-                Toggle("Hide Other Items", isOn: model.overviewHidesOthers)
-                    .disabled(!model.shown(.overview).wrappedValue)
-            }
-            Section("Panel") {
-                Picker("Style", selection: model.overviewStyle) {
-                    ForEach(OverviewStyle.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+        HStack(spacing: 0) {
+            content
+            ItemPreview(model: model, id: id)
+                .frame(width: 320)
+                .padding(.vertical, 20)
+                .padding(.trailing, 20)
+        }
+    }
+}
+
+private struct OverviewPage: View {
+    let model: SettingsModel
+    @State private var dragging: OverviewMetric?
+
+    var body: some View {
+        PageWithPreview(model: model, id: .overview) {
+            Form {
+                Section {
+                    Toggle("Show in Menu Bar", isOn: model.shown(.overview))
+                    Toggle("Hide Other Items", isOn: model.overviewHidesOthers)
+                        .disabled(!model.shown(.overview).wrappedValue)
                 }
-                .pickerStyle(.segmented)
+                Section("Panel") {
+                    Picker("Style", selection: model.overviewStyle) {
+                        ForEach(OverviewStyle.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Section {
+                    ForEach(model.overviewMetrics, id: \.self) { metric in
+                        let title = metric.title(in: model.overviewStyle.wrappedValue)
+                        Toggle(isOn: model.metricShown(metric)) {
+                            Label {
+                                Text(title)
+                            } icon: {
+                                Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+                            }
+                        }
+                        .dragToReorder(metric, raw: metric.rawValue, dragging: $dragging) { model.dropMetric($0, onto: $1) }
+                        .contextMenu {
+                            Button("Move Up") { model.moveMetric(metric, by: -1) }.disabled(!model.canMoveMetric(metric, by: -1))
+                            Button("Move Down") { model.moveMetric(metric, by: 1) }.disabled(!model.canMoveMetric(metric, by: 1))
+                        }
+                    }
+                } header: {
+                    Text("Contents")
+                } footer: {
+                    Text("Drag to reorder, or Command-drag in the panel.").foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -359,31 +455,51 @@ private struct ItemPage: View {
     let id: ItemID
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Show in Menu Bar", isOn: model.shown(id))
-            }
-            Section("Panel") {
-                ForEach(PanelSectionID.sections(of: id), id: \.self) { section in
-                    Toggle(section.title, isOn: model.sectionShown(section))
+        PageWithPreview(model: model, id: id) {
+            Form {
+                Section {
+                    Toggle("Show in Menu Bar", isOn: model.shown(id))
+                }
+                Section("Panel") {
+                    ForEach(PanelSectionID.sections(of: id), id: \.self) { section in
+                        Toggle(section.title, isOn: model.sectionShown(section))
+                    }
                 }
             }
         }
     }
 }
 
+private extension View {
+    /// A grouped Form ignores onMove on macOS, so rows drag and drop themselves.
+    func dragToReorder<ID: Equatable>(_ id: ID, raw: String, dragging: Binding<ID?>,
+                                      drop: @escaping (ID, ID) -> Void) -> some View {
+        contentShape(Rectangle())
+            .onDrag {
+                dragging.wrappedValue = id
+                let provider = NSItemProvider()
+                provider.registerDataRepresentation(for: .boostGaugeItem) { done in
+                    done(Data(raw.utf8), nil)
+                    return nil
+                }
+                return provider
+            }
+            .onDrop(of: [.boostGaugeItem], delegate: RowDropDelegate(target: id, dragging: dragging, drop: drop))
+    }
+}
+
 /// Rows reorder as the drag passes over them, like System Settings; the drop itself only ends the drag.
-private struct RowDropDelegate: DropDelegate {
-    let target: ItemID
-    let model: SettingsModel
-    @Binding var dragging: ItemID?
+private struct RowDropDelegate<ID: Equatable>: DropDelegate {
+    let target: ID
+    @Binding var dragging: ID?
+    let drop: (ID, ID) -> Void
 
     // `dragging` outlives a cancelled drag, so only our own row type may reorder.
     func validateDrop(info: DropInfo) -> Bool { dragging != nil && info.hasItemsConforming(to: [.boostGaugeItem]) }
 
     func dropEntered(info: DropInfo) {
         guard let dragged = dragging, dragged != target else { return }
-        withAnimation(.snappy) { model.drop(dragged, onto: target) }
+        withAnimation(.snappy) { drop(dragged, target) }
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }

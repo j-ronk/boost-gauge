@@ -4,12 +4,19 @@ import Observation
 /// Puts Boost Gauge's items in the menu bar in the user's order. macOS 27 remembers a position for each status item
 /// and ignores insertion order and `Preferred Position`, so the menu bar scenes stay put as fixed slots
 /// (`Item-0`…`Item-8`) and each slot shows whichever item belongs at its place, left to right.
+///
+/// A Cmd-drag in the menu bar moves a slot's window, and AppKit says nothing more. So when the same slots are all
+/// placed but sit in a new left-to-right order, the user moved one: each keeps the item it showed and Settings takes
+/// the order from the screen. Any other change (a slot shown, hidden or not yet placed) is Boost Gauge's own, and the
+/// slots follow Settings instead.
 @MainActor @Observable public final class MenuBarSlots {
     /// Slot → the item it shows. Slots out of the menu bar aren't listed.
     public private(set) var assignment: [Int: ItemID] = [:]
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let positions: @MainActor () -> [Int: Double]
     @ObservationIgnored private var moveObserver: NSObjectProtocol?
+    /// The shown slots left to right at the last pass, while every one was placed.
+    @ObservationIgnored private var lastPlacement: [Int]?
 
     public init(settings: AppSettings, positions: @escaping @MainActor () -> [Int: Double] = MenuBarSlots.statusWindowPositions) {
         self.settings = settings
@@ -25,10 +32,29 @@ import Observation
     /// Returns whether anything changed. Assigning the same slots again would re-render every label.
     @discardableResult public func refresh() -> Bool {
         let shown = Set(ItemID.allCases.filter(settings.isInMenuBar))
-        let next = Self.assign(order: settings.itemOrder, shown: shown, positions: positions())
+        let positions = positions()
+        adoptUserMove(shown: shown, positions: positions)
+        let next = Self.assign(order: settings.itemOrder, shown: shown, positions: positions)
         guard next != assignment else { return false }
         assignment = next
         return true
+    }
+
+    /// Writes the screen's order to Settings after a Cmd-drag, so the assignment that follows leaves every slot
+    /// showing what it showed. Writing Settings re-runs `refresh`, which then finds nothing new.
+    private func adoptUserMove(shown: Set<ItemID>, positions: [Int: Double]) {
+        let slots = ItemID.allCases.indices.filter { shown.contains(ItemID.allCases[$0]) }
+        guard slots.allSatisfy({ (positions[$0] ?? 0) > 0 }) else {
+            lastPlacement = nil
+            return
+        }
+        let placement = slots.sorted { positions[$0]! < positions[$1]! }
+        defer { lastPlacement = placement }
+        guard let last = lastPlacement, last != placement, Set(last) == Set(placement) else { return }
+        let onScreen = placement.compactMap { assignment[$0] }
+        guard onScreen.count == placement.count else { return }
+        let next = ItemOrder.reordering(settings.itemOrder, shownAs: onScreen)
+        if next != settings.itemOrder { settings.itemOrder = next }
     }
 
     /// The menu bar's own visibility changes for a slot. SwiftUI also echoes the changes Boost Gauge makes, and

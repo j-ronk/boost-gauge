@@ -4,15 +4,15 @@ import Testing
 
 @MainActor
 struct ItemOrderTests {
-    @Test func defaultOrderIsDeclarationOrder() {
+    @Test func defaultOrderIsOverviewThenDeclarationOrder() {
         let suite = TestDefaults()
-        #expect(AppSettings(defaults: suite.defaults).itemOrder == ItemID.allCases)
+        #expect(AppSettings(defaults: suite.defaults).itemOrder == [.overview] + ItemID.allCases.filter { $0 != .overview })
     }
 
     @Test func orderPersistsUnderItsKey() {
         let suite = TestDefaults()
         let settings = AppSettings(defaults: suite.defaults)
-        let order: [ItemID] = [.power, .memory, .battery, .cpu, .gpu, .temps, .network, .disk]
+        let order: [ItemID] = [.power, .memory, .battery, .cpu, .gpu, .temps, .network, .disk, .overview]
         settings.itemOrder = order
         #expect(settings.itemOrder == order)
         #expect(suite.defaults.stringArray(forKey: "item.order") == order.map(\.rawValue))
@@ -21,46 +21,47 @@ struct ItemOrderTests {
 
     @Test func unknownAndDuplicateIdsAreDropped() {
         #expect(ItemOrder.normalized(["cpu", "fans", "cpu", "battery", "", "gpu", "memory", "temps", "network", "disk", "power"])
-                == [.cpu, .battery, .gpu, .memory, .temps, .network, .disk, .power])
+                == [.overview, .cpu, .battery, .gpu, .memory, .temps, .network, .disk, .power])
     }
 
     @Test func missingIdsAreAppendedInDeclarationOrder() {
         // A stored order from before an item existed: the new item lands at the end.
         #expect(ItemOrder.normalized(["power", "cpu", "battery", "gpu", "memory", "temps", "network"])
-                == [.power, .cpu, .battery, .gpu, .memory, .temps, .network, .disk])
-        #expect(ItemOrder.normalized(["disk"]) == [.disk, .battery, .cpu, .gpu, .memory, .temps, .network, .power])
+                == [.overview, .power, .cpu, .battery, .gpu, .memory, .temps, .network, .disk])
+        #expect(ItemOrder.normalized(["disk"]) == [.overview, .disk, .battery, .cpu, .gpu, .memory, .temps, .network, .power])
     }
 
     @Test func missingOrCorruptStoredValueFallsBack() {
-        #expect(ItemOrder.normalized(nil) == ItemID.allCases)
-        #expect(ItemOrder.normalized([]) == ItemID.allCases)
+        #expect(ItemOrder.normalized(nil) == ItemOrder.default)
+        #expect(ItemOrder.normalized([]) == ItemOrder.default)
         let suite = TestDefaults()
         suite.defaults.set("cpu,gpu", forKey: "item.order")
-        #expect(AppSettings(defaults: suite.defaults).itemOrder == ItemID.allCases)
+        #expect(AppSettings(defaults: suite.defaults).itemOrder == ItemOrder.default)
     }
 
     @Test func setterNormalizes() {
         let suite = TestDefaults()
         let settings = AppSettings(defaults: suite.defaults)
         settings.itemOrder = [.disk, .disk, .cpu]
-        #expect(settings.itemOrder == [.disk, .cpu, .battery, .gpu, .memory, .temps, .network, .power])
+        #expect(settings.itemOrder == [.overview, .disk, .cpu, .battery, .gpu, .memory, .temps, .network, .power])
     }
 
     @Test func hiddenItemsKeepTheirSlot() {
         let suite = TestDefaults()
         let settings = AppSettings(defaults: suite.defaults)
-        settings.itemOrder = [.power, .gpu, .battery, .cpu, .memory, .temps, .network, .disk]
+        settings.itemOrder = [.power, .gpu, .battery, .cpu, .memory, .temps, .network, .disk, .overview]
         settings.setShown(.gpu, false)
         settings.setShown(.gpu, true)
-        #expect(settings.itemOrder == [.power, .gpu, .battery, .cpu, .memory, .temps, .network, .disk])
+        #expect(settings.itemOrder == [.power, .gpu, .battery, .cpu, .memory, .temps, .network, .disk, .overview])
     }
 
     @Test func movesLikeAList() {
-        var order = ItemID.allCases
+        let start: [ItemID] = [.battery, .cpu, .gpu, .memory, .temps, .network, .disk, .power]
+        var order = start
         ItemOrder.move(&order, fromOffsets: IndexSet(integer: 7), toOffset: 0)
         #expect(order == [.power, .battery, .cpu, .gpu, .memory, .temps, .network, .disk])
         ItemOrder.move(&order, fromOffsets: IndexSet(integer: 0), toOffset: 8)
-        #expect(order == ItemID.allCases)
+        #expect(order == start)
         ItemOrder.move(&order, fromOffsets: IndexSet([1, 2]), toOffset: 5)
         #expect(order == [.battery, .memory, .temps, .cpu, .gpu, .network, .disk, .power])
     }
@@ -68,7 +69,7 @@ struct ItemOrderTests {
 
 @MainActor
 struct ItemOrderDropTests {
-    private let start = ItemID.allCases
+    private let start: [ItemID] = [.battery, .cpu, .gpu, .memory, .temps, .network, .disk, .power]
 
     @Test func firstToLast() {
         #expect(ItemOrder.dropping(.battery, on: .power, edge: .after, in: start)

@@ -65,7 +65,7 @@ case "$mode" in
     "$app/Contents/MacOS/BoostGauge" --render "$out" > "$root/build/render.log" 2>&1 &
     pid=$!
     i=0
-    while kill -0 "$pid" 2>/dev/null && [ $i -lt 120 ]; do sleep 0.5; i=$((i + 1)); done
+    while kill -0 "$pid" 2>/dev/null && [ $i -lt 240 ]; do sleep 0.5; i=$((i + 1)); done
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid"
       echo "render timed out" >&2

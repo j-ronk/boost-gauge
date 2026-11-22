@@ -27,9 +27,8 @@ public extension SettingsFeature {
     /// Each Settings page for `--render`, named for the PNG.
     @MainActor static func renderPages(_ ctx: AppContext) -> [(name: String, view: AnyView)] {
         let model = SettingsModel(ctx)
-        let panes: [(String, SettingsPane)] = [("general", .general), ("menubar", .menuBar), ("cpu", .item(.cpu)),
-                                               ("battery", .item(.battery)), ("network", .item(.network)),
-                                               ("overview", .item(.overview))]
+        let panes: [(String, SettingsPane)] = [("general", .general), ("menubar", .menuBar)]
+            + SettingsPane.items.map { (SettingsModel.title($0).lowercased(), .item($0)) }
         return panes.map { name, pane in (name, AnyView(SettingsView(model: model, pane: pane))) }
     }
 }

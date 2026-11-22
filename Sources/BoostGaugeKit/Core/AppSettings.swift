@@ -23,6 +23,8 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
     private var hiddenSections: Set<PanelSectionID>
     private var storedOverviewStyle: OverviewStyle
     private var storedOverviewHidesOthers: Bool
+    private var storedOverviewOrder: [OverviewMetric]
+    private var hiddenOverviewMetrics: Set<OverviewMetric>
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -39,6 +41,38 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         hiddenSections = Set(PanelSectionID.allCases.filter { defaults.object(forKey: Self.sectionKey($0)) as? Bool == false })
         storedOverviewStyle = defaults.string(forKey: Keys.overviewStyle).flatMap(OverviewStyle.init) ?? .bars
         storedOverviewHidesOthers = defaults.bool(forKey: Keys.overviewHidesOthers)
+        storedOverviewOrder = OverviewOrder.normalized(defaults.stringArray(forKey: Keys.overviewOrder))
+        hiddenOverviewMetrics = Set((defaults.stringArray(forKey: Keys.overviewHidden) ?? []).compactMap(OverviewMetric.init))
+    }
+
+    /// Top to bottom in every Overview style. Always holds every metric exactly once.
+    public var overviewOrder: [OverviewMetric] {
+        get { storedOverviewOrder }
+        set {
+            let next = OverviewOrder.normalized(newValue.map(\.rawValue))
+            guard next != storedOverviewOrder else { return }
+            storedOverviewOrder = next
+            defaults.set(next.map(\.rawValue), forKey: Keys.overviewOrder)
+        }
+    }
+
+    /// Live reorder, from the Settings list or a Cmd-drag in the panel: `dragged` takes `target`'s place.
+    public func moveOverviewMetric(_ dragged: OverviewMetric, onto target: OverviewMetric) {
+        overviewOrder = ItemOrder.live(dragged, onto: target, in: overviewOrder)
+    }
+
+    public func isOverviewMetricShown(_ metric: OverviewMetric) -> Bool { !hiddenOverviewMetrics.contains(metric) }
+
+    public func setOverviewMetricShown(_ metric: OverviewMetric, _ isShown: Bool) {
+        guard isShown != isOverviewMetricShown(metric) else { return }
+        if isShown { hiddenOverviewMetrics.remove(metric) } else { hiddenOverviewMetrics.insert(metric) }
+        defaults.set(hiddenOverviewMetrics.map(\.rawValue).sorted(), forKey: Keys.overviewHidden)
+    }
+
+    /// What a style shows, in order.
+    public func overviewMetrics(for style: OverviewStyle) -> [OverviewMetric] {
+        let allowed = Set(style.metrics)
+        return overviewOrder.filter { allowed.contains($0) && isOverviewMetricShown($0) }
     }
 
     public var overviewStyle: OverviewStyle {
@@ -138,6 +172,8 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         static let itemOrder = "item.order"
         static let overviewStyle = "overview.style"
         static let overviewHidesOthers = "overview.hidesOthers"
+        static let overviewOrder = "overview.order"
+        static let overviewHidden = "overview.hidden"
     }
 
     private static func shownKey(_ id: ItemID) -> String { "item.\(id.rawValue).shown" }

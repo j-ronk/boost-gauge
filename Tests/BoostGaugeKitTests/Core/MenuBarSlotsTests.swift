@@ -85,7 +85,8 @@ struct MenuBarSlotsTests {
     @Test func slotNumberComesFromTheStatusWindowTitle() {
         #expect(MenuBarSlots.slot(fromTitle: "Item-0") == 0)
         #expect(MenuBarSlots.slot(fromTitle: "Item-7") == 7)
-        #expect(MenuBarSlots.slot(fromTitle: "Item-8") == nil)
+        #expect(MenuBarSlots.slot(fromTitle: "Item-8") == 8)
+        #expect(MenuBarSlots.slot(fromTitle: "Item-9") == nil)
         #expect(MenuBarSlots.slot(fromTitle: "Item-x") == nil)
         #expect(MenuBarSlots.slot(fromTitle: "Settings") == nil)
     }

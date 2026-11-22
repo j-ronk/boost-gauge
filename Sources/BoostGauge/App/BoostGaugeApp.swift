@@ -39,8 +39,8 @@ struct ItemScene: Scene {
             if let item {
                 // A reorder can hand an open slot a different item; a new identity closes the old one's panel cleanly.
                 item.panel
-                    .onAppear { item.panelDidOpen() }
-                    .onDisappear { item.panelDidClose() }
+                    .onAppear { context.panels.opened(item) }
+                    .onDisappear { context.panels.closed(item) }
                     .id(context.slots.item(inSlot: slot))
             }
         } label: {

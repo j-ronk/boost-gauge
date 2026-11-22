@@ -20,36 +20,6 @@ struct OverviewReading: Equatable {
     var networkUnit = NetworkUnit.bytes
 }
 
-/// The rows of the List style, top to bottom.
-enum OverviewRow: String, CaseIterable, Sendable {
-    case cpu, gpu, memory, temps, battery, network, disk
-
-    var title: String {
-        switch self {
-        case .cpu: "CPU"
-        case .gpu: "GPU"
-        case .memory: "Memory"
-        case .temps: "Temperatures"
-        case .battery: "Battery"
-        case .network: "Network"
-        case .disk: "Disk"
-        }
-    }
-
-    /// The value the row's sparkline follows.
-    func sparkValue(_ r: OverviewReading) -> Double? {
-        switch self {
-        case .cpu: r.cpu
-        case .gpu: r.gpu
-        case .memory: r.memory?.usedPercent
-        case .temps: r.temps.hottest
-        case .battery: r.battery.map { Double($0.percent) }
-        case .network: r.network?.down
-        case .disk: r.disk.flatMap(OverviewText.diskUsedPercent)
-        }
-    }
-}
-
 @MainActor @Observable final class OverviewModel {
     /// About 40 s at the default refresh: enough for a shape, short enough to read as "now".
     static let sparkLength = 20
@@ -57,11 +27,11 @@ enum OverviewRow: String, CaseIterable, Sendable {
     private(set) var reading = OverviewReading()
     /// The menu bar glyph's bar heights. Kept apart from `reading` so the label only redraws when a bar moves.
     private(set) var glyph = OverviewGlyph.heights(cpu: nil, gpu: nil, memory: nil)
-    private(set) var sparks: [OverviewRow: [Double]] = [:]
+    private(set) var sparks: [OverviewMetric: [Double]] = [:]
     var cores: [CoreLoad] = []
     var topProcesses: [ProcessRow]?
     /// Which List rows are open. Remembered while the app runs; CPU starts open.
-    var expanded: Set<OverviewRow> = [.cpu]
+    var expanded: Set<OverviewMetric> = [.cpu]
 
     init(reading: OverviewReading = OverviewReading()) {
         update(reading)
@@ -74,8 +44,8 @@ enum OverviewRow: String, CaseIterable, Sendable {
         if heights != glyph { glyph = heights }
     }
 
-    /// Adds the current value of each row in `rows` to its sparkline.
-    func recordSparks(_ rows: [OverviewRow]) {
+    /// Adds the current value of each metric in `rows` to its sparkline.
+    func recordSparks(_ rows: [OverviewMetric]) {
         var next = sparks
         for row in rows {
             guard let value = row.sparkValue(reading), value.isFinite else { continue }
@@ -89,11 +59,11 @@ enum OverviewRow: String, CaseIterable, Sendable {
         if !sparks.isEmpty { sparks = [:] }
     }
 
-    func setSparks(_ row: OverviewRow, _ values: [Double]) {
+    func setSparks(_ row: OverviewMetric, _ values: [Double]) {
         sparks[row] = Array(values.suffix(Self.sparkLength))
     }
 
-    func toggle(_ row: OverviewRow) {
+    func toggle(_ row: OverviewMetric) {
         if expanded.contains(row) { expanded.remove(row) } else { expanded.insert(row) }
     }
 }
@@ -151,16 +121,20 @@ enum OverviewText {
         r.map { "↑ " + NetworkCounters.rateText($0.up, unit: unit) } ?? "↑ —"
     }
 
-    /// The List row's value at the right.
-    static func rowValue(_ row: OverviewRow, _ r: OverviewReading) -> String {
-        switch row {
+    /// The List row's figure, at the right.
+    static func rowValue(_ metric: OverviewMetric, _ r: OverviewReading) -> String {
+        switch metric {
         case .cpu: percent(r.cpu)
         case .gpu: percent(r.gpu)
         case .memory: percent(r.memory?.usedPercent)
-        case .temps: temperature(r.temps.hottest, r.temperatureUnit)
-        case .battery: batteryPercent(r.battery)
-        case .network: r.network.map { NetworkCounters.rateText($0.down, unit: r.networkUnit) } ?? "—"
         case .disk: diskFree(r.disk)
+        case .cpuTemp: temperature(r.temps.cpu, r.temperatureUnit)
+        case .gpuTemp: temperature(r.temps.gpu, r.temperatureUnit)
+        case .batteryTemp: temperature(r.temps.battery ?? r.battery?.temperatureC, r.temperatureUnit)
+        case .hottest: temperature(r.temps.hottest, r.temperatureUnit)
+        case .battery: batteryPercent(r.battery)
+        case .systemPower: watts(r.systemWatts)
+        case .network: r.network.map { NetworkCounters.rateText($0.down, unit: r.networkUnit) } ?? "—"
         }
     }
 }

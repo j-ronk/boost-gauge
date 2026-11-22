@@ -27,16 +27,16 @@ struct SettingsViewTests {
     @Test func listFollowsStoredOrder() {
         let suite = TestDefaults()
         let (model, ctx) = makeModel(suite)
-        #expect(model.order == ItemID.allCases)
-        ctx.settings.itemOrder = [.power, .battery, .cpu, .gpu, .memory, .temps, .network, .disk]
+        #expect(model.order == ItemOrder.default)
+        ctx.settings.itemOrder = [.power, .battery, .cpu, .gpu, .memory, .temps, .network, .disk, .overview]
         #expect(model.order.first == .power)
     }
 
     @Test func dragMoveWritesOrder() {
         let suite = TestDefaults()
         let (model, ctx) = makeModel(suite)
-        model.move(fromOffsets: IndexSet(integer: 7), toOffset: 0)
-        #expect(ctx.settings.itemOrder == [.power, .battery, .cpu, .gpu, .memory, .temps, .network, .disk])
+        model.move(fromOffsets: IndexSet(integer: 8), toOffset: 0)
+        #expect(ctx.settings.itemOrder == [.power, .overview, .battery, .cpu, .gpu, .memory, .temps, .network, .disk])
         #expect(AppSettings(defaults: suite.reopen()).itemOrder == ctx.settings.itemOrder)
     }
 
@@ -44,10 +44,10 @@ struct SettingsViewTests {
         let suite = TestDefaults()
         let (model, ctx) = makeModel(suite)
         model.drop(.battery, onto: .disk)
-        #expect(ctx.settings.itemOrder == [.cpu, .gpu, .memory, .temps, .network, .disk, .battery, .power])
+        #expect(ctx.settings.itemOrder == [.overview, .cpu, .gpu, .memory, .temps, .network, .disk, .battery, .power])
         #expect(suite.defaults.stringArray(forKey: "item.order") == ctx.settings.itemOrder.map(\.rawValue))
         model.drop(.power, onto: .cpu)
-        #expect(ctx.settings.itemOrder == [.power, .cpu, .gpu, .memory, .temps, .network, .disk, .battery])
+        #expect(ctx.settings.itemOrder == [.overview, .power, .cpu, .gpu, .memory, .temps, .network, .disk, .battery])
         #expect(AppSettings(defaults: suite.reopen()).itemOrder == ctx.settings.itemOrder)
     }
 
@@ -61,19 +61,19 @@ struct SettingsViewTests {
     @Test func moveUpAndDownStopAtTheEnds() {
         let suite = TestDefaults()
         let (model, ctx) = makeModel(suite)
-        #expect(!model.canMove(.battery, by: -1))
+        #expect(!model.canMove(.overview, by: -1))
         #expect(!model.canMove(.power, by: 1))
-        model.move(.battery, by: -1)
-        #expect(ctx.settings.itemOrder == ItemID.allCases)
+        model.move(.overview, by: -1)
+        #expect(ctx.settings.itemOrder == ItemOrder.default)
         model.move(.cpu, by: -1)
-        #expect(ctx.settings.itemOrder.prefix(2) == [.cpu, .battery])
+        #expect(ctx.settings.itemOrder.prefix(3) == [.overview, .cpu, .battery])
         model.move(.cpu, by: 1)
-        #expect(ctx.settings.itemOrder == ItemID.allCases)
+        #expect(ctx.settings.itemOrder == ItemOrder.default)
     }
 
     @Test func itemTitlesInMenuBarOrder() {
         #expect(ItemID.allCases.map(SettingsModel.title) ==
-                ["Battery", "CPU", "GPU", "Memory", "Temperatures", "Network", "Disk", "Power"])
+                ["Battery", "CPU", "GPU", "Memory", "Temperatures", "Network", "Disk", "Power", "Overview"])
     }
 
     @Test func showPercentageAndRefreshWriteSettings() {
