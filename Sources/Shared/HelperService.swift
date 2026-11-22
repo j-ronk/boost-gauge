@@ -1,7 +1,7 @@
 import Foundation
 
-/// The helper's exported object. Lives in Shared so the validation is unit-tested from VitalsKitTests.
-public final class HelperService: NSObject, VitalsHelperProtocol {
+/// The helper's exported object. Lives in Shared so the validation is unit-tested from BoostGaugeKitTests.
+public final class HelperService: NSObject, BoostGaugeHelperProtocol {
     public typealias Runner = (_ path: String, _ arguments: [String]) -> Int32
 
     private let run: Runner

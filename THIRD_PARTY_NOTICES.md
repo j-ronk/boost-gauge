@@ -2,13 +2,13 @@
 
 ## Stats
 
-Vitals reads temperatures and fan speeds with code adapted from Stats by Serhiy Mytrovtsiy,
+Boost Gauge reads temperatures and fan speeds with code adapted from Stats by Serhiy Mytrovtsiy,
 <https://github.com/exelban/stats> (commit 76d5160f, checked 2026-11-21), under the MIT License.
 
-- Adapted files: `Sources/VitalsKit/Sensors/Stats/SMC.swift` (from `SMC/smc.swift`) and
-  `Sources/VitalsKit/Sensors/Stats/SensorKeys.swift` (Apple Silicon keys from `Modules/Sensors/values.swift`).
-- Only the read path was taken. Vitals never writes to the SMC.
-- Full licence text: `Sources/VitalsKit/Sensors/Stats/LICENSE`.
+- Adapted files: `Sources/BoostGaugeKit/Sensors/Stats/SMC.swift` (from `SMC/smc.swift`) and
+  `Sources/BoostGaugeKit/Sensors/Stats/SensorKeys.swift` (Apple Silicon keys from `Modules/Sensors/values.swift`).
+- Only the read path was taken. Boost Gauge never writes to the SMC.
+- Full licence text: `Sources/BoostGaugeKit/Sensors/Stats/LICENSE`.
 
 ```
 MIT License

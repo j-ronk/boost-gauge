@@ -4,9 +4,9 @@
 // Your 10-character Apple Developer Team ID. Builds without one won't sign, and the helper refuses to run.
 DEVELOPMENT_TEAM =
 
-// Reverse-DNS prefix you own. The app is <prefix>.Vitals and the helper <prefix>.Vitals.Helper.
-VITALS_BUNDLE_PREFIX = com.example
+// Reverse-DNS prefix you own. The app is <prefix>.BoostGauge and the helper <prefix>.BoostGauge.Helper.
+BOOSTGAUGE_BUNDLE_PREFIX = com.example
 
-VITALS_APP_BUNDLE_ID = $(VITALS_BUNDLE_PREFIX).Vitals
+BOOSTGAUGE_APP_BUNDLE_ID = $(BOOSTGAUGE_BUNDLE_PREFIX).BoostGauge
 
 #include? "Signing.local.xcconfig"

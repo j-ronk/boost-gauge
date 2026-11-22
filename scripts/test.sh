@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 xcodegen generate --quiet
 
 only=()
-if [ $# -gt 0 ]; then only+=("-only-testing:VitalsKitTests/$1"); fi
+if [ $# -gt 0 ]; then only+=("-only-testing:BoostGaugeKitTests/$1"); fi
 
 # -quiet hides per-test results, so keep a result bundle and print the counts from it.
 mkdir -p build/TestResults
@@ -16,7 +16,7 @@ bundle="build/TestResults/$(date +%Y%m%d-%H%M%S)-$$.xcresult"
 
 set +e
 xcodebuild test \
-  -scheme VitalsKitTests \
+  -scheme BoostGaugeKitTests \
   -destination 'platform=macOS' \
   -derivedDataPath build/DerivedData \
   -resultBundlePath "$bundle" \

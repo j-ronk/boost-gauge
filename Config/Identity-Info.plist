@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>VitalsAppBundleIdentifier</key>
-	<string>$(VITALS_APP_BUNDLE_ID)</string>
-	<key>VitalsTeamIdentifier</key>
+	<key>BoostGaugeAppBundleIdentifier</key>
+	<string>$(BOOSTGAUGE_APP_BUNDLE_ID)</string>
+	<key>BoostGaugeTeamIdentifier</key>
 	<string>$(DEVELOPMENT_TEAM)</string>
 </dict>
 </plist>

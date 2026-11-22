@@ -525,7 +525,7 @@
 		<key>IOObjectClass</key>
 		<string>AGXDeviceUserClient</string>
 		<key>IOUserClientCreator</key>
-		<string>pid 34729, Vitals</string>
+		<string>pid 34729, BoostGauge</string>
 	</dict>
 </array>
 </plist>

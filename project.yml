@@ -1,4 +1,4 @@
-name: Vitals
+name: BoostGauge
 configFiles:
   Debug: Config/Signing.xcconfig
   Release: Config/Signing.xcconfig
@@ -19,97 +19,97 @@ settings:
     DEAD_CODE_STRIPPING: YES
     GENERATE_INFOPLIST_FILE: YES
 targets:
-  Vitals:
+  BoostGauge:
     type: application
     platform: macOS
     sources:
-      - path: Sources/Vitals
+      - path: Sources/BoostGauge
     postCompileScripts:
       # SMAppService finds the daemon by this file name, so it carries the helper's bundle ID.
       - name: Install launchd plist
         inputFiles:
-          - $(SRCROOT)/Sources/VitalsHelper/Helper.launchd.plist
+          - $(SRCROOT)/Sources/BoostGaugeHelper/Helper.launchd.plist
         outputFiles:
-          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/${VITALS_APP_BUNDLE_ID}.Helper.plist
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/${BOOSTGAUGE_APP_BUNDLE_ID}.Helper.plist
         script: |
           set -euo pipefail
-          if ! printf '%s' "$VITALS_APP_BUNDLE_ID" | grep -Eqx '[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*'; then
-            echo "error: VITALS_BUNDLE_PREFIX must be a plain reverse-DNS prefix (Config/Signing.local.xcconfig)" >&2
+          if ! printf '%s' "$BOOSTGAUGE_APP_BUNDLE_ID" | grep -Eqx '[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*'; then
+            echo "error: BOOSTGAUGE_BUNDLE_PREFIX must be a plain reverse-DNS prefix (Config/Signing.local.xcconfig)" >&2
             exit 1
           fi
           mkdir -p "$(dirname "$SCRIPT_OUTPUT_FILE_0")"
-          sed -e 's/[$][{]VITALS_APP_BUNDLE_ID[}]/'"$VITALS_APP_BUNDLE_ID"'/g' "$SCRIPT_INPUT_FILE_0" > "$SCRIPT_OUTPUT_FILE_0"
+          sed -e 's/[$][{]BOOSTGAUGE_APP_BUNDLE_ID[}]/'"$BOOSTGAUGE_APP_BUNDLE_ID"'/g' "$SCRIPT_INPUT_FILE_0" > "$SCRIPT_OUTPUT_FILE_0"
           plutil -lint -s "$SCRIPT_OUTPUT_FILE_0"
     dependencies:
-      - target: VitalsKit
+      - target: BoostGaugeKit
         embed: true
-      - target: VitalsHelper
+      - target: BoostGaugeHelper
         embed: true
         copy:
           destination: executables
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(VITALS_APP_BUNDLE_ID)
-        PRODUCT_NAME: Vitals
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOOSTGAUGE_APP_BUNDLE_ID)
+        PRODUCT_NAME: BoostGauge
         INFOPLIST_FILE: Config/Identity-Info.plist
         INFOPLIST_KEY_LSUIElement: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Vitals
+        INFOPLIST_KEY_CFBundleDisplayName: Boost Gauge
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
-  VitalsKit:
+  BoostGaugeKit:
     type: framework
     platform: macOS
     sources:
-      - path: Sources/VitalsKit
+      - path: Sources/BoostGaugeKit
       - path: Sources/Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(VITALS_BUNDLE_PREFIX).VitalsKit
-        PRODUCT_NAME: VitalsKit
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOOSTGAUGE_BUNDLE_PREFIX).BoostGaugeKit
+        PRODUCT_NAME: BoostGaugeKit
         SKIP_INSTALL: YES
-  VitalsHelper:
+  BoostGaugeHelper:
     type: tool
     platform: macOS
     sources:
-      - path: Sources/VitalsHelper
+      - path: Sources/BoostGaugeHelper
         excludes:
           - "*.plist"
       - path: Sources/Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(VITALS_APP_BUNDLE_ID).Helper
-        PRODUCT_NAME: VitalsHelper
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOOSTGAUGE_APP_BUNDLE_ID).Helper
+        PRODUCT_NAME: BoostGaugeHelper
         INFOPLIST_FILE: Config/Identity-Info.plist
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
         SKIP_INSTALL: YES
-  VitalsKitTests:
+  BoostGaugeKitTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: Tests/VitalsKitTests
+      - path: Tests/BoostGaugeKitTests
       - path: Tests/Fixtures
         type: folder
         buildPhase: resources
     dependencies:
-      - target: VitalsKit
+      - target: BoostGaugeKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(VITALS_BUNDLE_PREFIX).VitalsKitTests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOOSTGAUGE_BUNDLE_PREFIX).BoostGaugeKitTests
         # xctest is Apple-signed; hardened runtime library validation would refuse a team-signed bundle.
         ENABLE_HARDENED_RUNTIME: NO
 schemes:
-  Vitals:
+  BoostGauge:
     build:
       targets:
-        Vitals: all
+        BoostGauge: all
     run:
       config: Debug
-  VitalsKitTests:
+  BoostGaugeKitTests:
     build:
       targets:
-        VitalsKitTests: [test]
+        BoostGaugeKitTests: [test]
     test:
       config: Debug
       targets:
-        - VitalsKitTests
+        - BoostGaugeKitTests

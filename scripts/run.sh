@@ -20,14 +20,14 @@ if [ "$mode" = --install ]; then config=Release; fi
 
 xcodegen generate --quiet
 xcodebuild build \
-  -scheme Vitals \
+  -scheme BoostGauge \
   -configuration "$config" \
   -destination 'platform=macOS' \
   -derivedDataPath build/DerivedData \
   -quiet
 
-app="$root/build/DerivedData/Build/Products/$config/Vitals.app"
-pidfile="$root/build/vitals.pid"
+app="$root/build/DerivedData/Build/Products/$config/BoostGauge.app"
+pidfile="$root/build/boostgauge.pid"
 
 # Waits up to 5 s for a pid to exit.
 wait_gone() {
@@ -36,22 +36,22 @@ wait_gone() {
   if kill -0 "$1" 2>/dev/null; then echo "pid $1 still running after 5 s" >&2; return 1; fi
 }
 
-# Kills only the pid this script launched last time, and only if it is still Vitals.
+# Kills only the pid this script launched last time, and only if it is still Boost Gauge.
 kill_previous() {
   [ -f "$pidfile" ] || return 0
   local old
   old=$(cat "$pidfile")
   if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
     case "$(ps -o comm= -p "$old")" in
-      *Vitals) kill "$old"; wait_gone "$old" ;;
+      *BoostGauge) kill "$old"; wait_gone "$old" ;;
     esac
   fi
 }
 
 launch() {
-  nohup "$1/Contents/MacOS/Vitals" >/dev/null 2>&1 &
+  nohup "$1/Contents/MacOS/BoostGauge" >/dev/null 2>&1 &
   echo $! > "$pidfile"
-  echo "Vitals running, pid $(cat "$pidfile") ($1)"
+  echo "Boost Gauge running, pid $(cat "$pidfile") ($1)"
 }
 
 case "$mode" in
@@ -62,7 +62,7 @@ case "$mode" in
     out="$root/build/render"
     mkdir -p "$out"
     find "$out" -name '*.png' -delete
-    "$app/Contents/MacOS/Vitals" --render "$out" > "$root/build/render.log" 2>&1 &
+    "$app/Contents/MacOS/BoostGauge" --render "$out" > "$root/build/render.log" 2>&1 &
     pid=$!
     i=0
     while kill -0 "$pid" 2>/dev/null && [ $i -lt 120 ]; do sleep 0.5; i=$((i + 1)); done
@@ -77,13 +77,21 @@ case "$mode" in
     ;;
   --install)
     kill_previous
-    for pid in $(pgrep -x Vitals || true); do
-      if ps -o command= -p "$pid" | grep -q '^/Applications/Vitals.app/'; then kill "$pid"; wait_gone "$pid"; fi
+    for pid in $(pgrep -x BoostGauge || true); do
+      if ps -o command= -p "$pid" | grep -q '^/Applications/BoostGauge.app/'; then kill "$pid"; wait_gone "$pid"; fi
     done
+    # The app was called Vitals before the rename. Quit and trash that copy so two don't run side by side.
+    # Matched by path, since another app called Vitals may exist.
+    for pid in $(pgrep -x Vitals || true); do
+      if ps -o command= -p "$pid" | grep -Eq '^/Applications/Vitals[.]app/|/build/DerivedData/Build/Products/[^/]+/Vitals[.]app/'; then
+        kill "$pid"; wait_gone "$pid"
+      fi
+    done
+    if [ -d /Applications/Vitals.app ]; then rm -rf /Applications/Vitals.app; fi
     # ditto merges into an existing bundle; stale files break the code signature seal.
-    /bin/rm -rf /Applications/Vitals.app
-    ditto "$app" /Applications/Vitals.app
-    launch /Applications/Vitals.app
+    rm -rf /Applications/BoostGauge.app
+    ditto "$app" /Applications/BoostGauge.app
+    launch /Applications/BoostGauge.app
     ;;
   "")
     kill_previous

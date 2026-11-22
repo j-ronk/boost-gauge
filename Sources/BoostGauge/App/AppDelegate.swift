@@ -1,0 +1,36 @@
+import AppKit
+import BoostGaugeKit
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Built before any scene so `BoostGaugeApp.body` and the delegate share one context.
+    @MainActor static let context: AppContext = {
+        // Render mode only draws, so it leaves the person's settings and history untouched.
+        if !RenderMode.isActive { LegacySettingsMigration.runAtLaunch() }
+        let ctx = AppContext()
+        Registry.registerAll(ctx)
+        return ctx
+    }()
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let ctx = Self.context
+        if let dir = RenderMode.outputDirectory {
+            Task { @MainActor in
+                exit(await RenderMode.run(ctx, to: dir) ? 0 : 1)
+            }
+            return
+        }
+        ctx.scheduler.start()
+        ctx.slots.start()
+        ctx.onLaunch?()
+    }
+
+    /// Launching Boost Gauge again while it runs lands here; Track E uses it to open Settings.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Self.context.onReopen?()
+        return false
+    }
+}

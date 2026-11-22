@@ -6,7 +6,7 @@ DerivedData/
 xcuserdata/
 .DS_Store
 build/
-Vitals.xcodeproj/
+BoostGauge.xcodeproj/
 Config/Signing.local.xcconfig
 
 # Private working notes and agent docs

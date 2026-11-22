@@ -1,9 +1,9 @@
 #!/bin/bash
 # Usage: scripts/release.sh <version>      e.g. scripts/release.sh 1.0.0
-# Builds a Developer ID-signed, notarised, stapled build/release/Vitals-<version>.zip and prints the
+# Builds a Developer ID-signed, notarised, stapled build/release/BoostGauge-<version>.zip and prints the
 # gh release command. Needs a "Developer ID Application" certificate for the team in
-# Config/Signing.local.xcconfig and a notarytool keychain profile (default vitals-notary, or set
-# VITALS_NOTARY_PROFILE), created once with `xcrun notarytool store-credentials vitals-notary`.
+# Config/Signing.local.xcconfig and a notarytool keychain profile (default boostgauge-notary, or set
+# BOOSTGAUGE_NOTARY_PROFILE), created once with `xcrun notarytool store-credentials boostgauge-notary`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
@@ -14,12 +14,12 @@ version=${1:-}
 [ $# -eq 1 ] || { echo "usage: scripts/release.sh <version>" >&2; exit 2; }
 printf '%s' "$version" | grep -Eqx '[0-9]+\.[0-9]+(\.[0-9]+)?' || fail "version must look like 1.0.0, got '$version'"
 
-profile=${VITALS_NOTARY_PROFILE:-vitals-notary}
+profile=${BOOSTGAUGE_NOTARY_PROFILE:-boostgauge-notary}
 local_config=Config/Signing.local.xcconfig
 
 # --- Early checks: each stops with one line before anything slow runs.
 command -v xcodegen >/dev/null || fail "xcodegen not found (brew install xcodegen)"
-[ -f "$local_config" ] || fail "$local_config is missing; create it with DEVELOPMENT_TEAM and VITALS_BUNDLE_PREFIX (see README)"
+[ -f "$local_config" ] || fail "$local_config is missing; create it with DEVELOPMENT_TEAM and BOOSTGAUGE_BUNDLE_PREFIX (see README)"
 team=$(sed -nE 's/^[[:space:]]*DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*([A-Z0-9]{10})[[:space:]]*$/\1/p' "$local_config" | tail -n 1)
 [ -n "$team" ] || fail "no 10-character DEVELOPMENT_TEAM in $local_config"
 identity=$(security find-identity -v -p codesigning \
@@ -33,18 +33,18 @@ commit=$(git rev-parse HEAD)
 build_number=$(git rev-list --count HEAD)
 out="$root/build/release"
 derived="$out/DerivedData"
-app="$derived/Build/Products/Release/Vitals.app"
-zip="$out/Vitals-$version.zip"
+app="$derived/Build/Products/Release/BoostGauge.app"
+zip="$out/BoostGauge-$version.zip"
 
 rm -rf "$out"
 mkdir -p "$out"
 
 # --- Build. Command-line settings override project.yml for every target, including the embedded
 # helper and framework. Base entitlements are off because notarisation rejects get-task-allow.
-echo "Building Vitals $version ($build_number)..."
+echo "Building Boost Gauge $version ($build_number)..."
 xcodegen generate --quiet
 xcodebuild build \
-  -scheme Vitals \
+  -scheme BoostGauge \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -derivedDataPath "$derived" \
@@ -83,8 +83,8 @@ check_signed() {
   echo "  signed ok: ${1#"$derived/Build/Products/Release/"}"
 }
 check_signed "$app"
-check_signed "$app/Contents/MacOS/VitalsHelper"
-check_signed "$app/Contents/Frameworks/VitalsKit.framework"
+check_signed "$app/Contents/MacOS/BoostGaugeHelper"
+check_signed "$app/Contents/Frameworks/BoostGaugeKit.framework"
 
 # --- Notarise, staple, re-zip.
 ditto -c -k --keepParent "$app" "$zip"
@@ -121,19 +121,19 @@ ditto -c -k --keepParent "$app" "$zip"
 # Check what ships: unpack the final zip and assess that copy, not the build output.
 unpacked="$out/verify"
 ditto -x -k "$zip" "$unpacked"
-xcrun stapler validate "$unpacked/Vitals.app"
-assessment=$(spctl -a -vv -t exec "$unpacked/Vitals.app" 2>&1) || { echo "$assessment" >&2; fail "spctl rejected the app in the zip"; }
+xcrun stapler validate "$unpacked/BoostGauge.app"
+assessment=$(spctl -a -vv -t exec "$unpacked/BoostGauge.app" 2>&1) || { echo "$assessment" >&2; fail "spctl rejected the app in the zip"; }
 echo "$assessment" | sed 's/^/  /'
 grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the app but not as Notarized Developer ID"
 rm -rf "$unpacked"
 
 # --- Hand over. Not run here: publishing is the maintainer's call.
 sha=$(shasum -a 256 "$zip" | awk '{print $1}')
-notes="Needs macOS 27 on Apple Silicon. Unzip and move Vitals to Applications. The first time you switch Energy Mode, allow the Vitals helper once in System Settings > General > Login Items. SHA-256: $sha"
+notes="Needs macOS 27 on Apple Silicon. Unzip and move Boost Gauge to Applications. The first time you switch Energy Mode, allow the Boost Gauge helper once in System Settings > General > Login Items. SHA-256: $sha"
 echo
 echo "Built $zip"
 echo "SHA-256: $sha"
 echo
 echo "To publish (push $commit first):"
 # Plain single quotes are safe: version is digits and dots, and the notes contain no single quote.
-echo "gh release create v$version build/release/Vitals-$version.zip --target $commit --title 'Vitals $version' --notes '$notes'"
+echo "gh release create v$version build/release/BoostGauge-$version.zip --target $commit --title 'Boost Gauge $version' --notes '$notes'"
