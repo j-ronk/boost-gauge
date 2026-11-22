@@ -80,14 +80,6 @@ case "$mode" in
     for pid in $(pgrep -x BoostGauge || true); do
       if ps -o command= -p "$pid" | grep -q '^/Applications/BoostGauge.app/'; then kill "$pid"; wait_gone "$pid"; fi
     done
-    # The app was called Vitals before the rename. Quit and trash that copy so two don't run side by side.
-    # Matched by path, since another app called Vitals may exist.
-    for pid in $(pgrep -x Vitals || true); do
-      if ps -o command= -p "$pid" | grep -Eq '^/Applications/Vitals[.]app/|/build/DerivedData/Build/Products/[^/]+/Vitals[.]app/'; then
-        kill "$pid"; wait_gone "$pid"
-      fi
-    done
-    if [ -d /Applications/Vitals.app ]; then rm -rf /Applications/Vitals.app; fi
     # ditto merges into an existing bundle; stale files break the code signature seal.
     rm -rf /Applications/BoostGauge.app
     ditto "$app" /Applications/BoostGauge.app

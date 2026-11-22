@@ -4,8 +4,6 @@ import BoostGaugeKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Built before any scene so `BoostGaugeApp.body` and the delegate share one context.
     @MainActor static let context: AppContext = {
-        // Render mode only draws, so it leaves the person's settings and history untouched.
-        if !RenderMode.isActive { LegacySettingsMigration.runAtLaunch() }
         let ctx = AppContext()
         Registry.registerAll(ctx)
         return ctx
