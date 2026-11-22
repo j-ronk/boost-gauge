@@ -54,6 +54,16 @@ struct LegacySettingsMigrationTests {
         #expect(new.defaults.object(forKey: "item.gpu.shown") == nil)
     }
 
+    // AppKit writes NSStatusItem keys as soon as any copy of the app shows a status item (a render run, say),
+    // so they must not count as the person having configured the new app.
+    @Test func statusItemKeysAloneDoNotBlockTheCopy() {
+        let old = TestDefaults(), new = TestDefaults()
+        old.defaults.set(true, forKey: "item.gpu.shown")
+        new.defaults.set(true, forKey: "NSStatusItem VisibleCC Item-0")
+
+        #expect(LegacySettingsMigration.run(legacySuite: old.name, into: new.defaults, domain: new.name) == ["item.gpu.shown"])
+    }
+
     @Test func runsOnlyOnce() {
         let old = TestDefaults(), new = TestDefaults()
         old.defaults.set(5, forKey: "refreshSeconds")

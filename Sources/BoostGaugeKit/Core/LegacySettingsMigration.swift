@@ -29,7 +29,9 @@ public enum LegacySettingsMigration {
     @discardableResult
     public static func run(legacySuite: String, into defaults: UserDefaults, domain: String) -> [String] {
         guard !defaults.bool(forKey: doneKey) else { return [] }
-        let alreadySet = (defaults.persistentDomain(forName: domain) ?? [:]).keys.contains(where: isMigrated)
+        // NSStatusItem keys are AppKit's, written by any launch that shows a status item, so they don't count.
+        let alreadySet = (defaults.persistentDomain(forName: domain) ?? [:]).keys
+            .contains { isMigrated($0) && !$0.hasPrefix("NSStatusItem ") }
         defaults.set(true, forKey: doneKey)
         guard !alreadySet, let old = UserDefaults(suiteName: legacySuite)?.persistentDomain(forName: legacySuite) else { return [] }
         let copied = old.filter { isMigrated($0.key) }
