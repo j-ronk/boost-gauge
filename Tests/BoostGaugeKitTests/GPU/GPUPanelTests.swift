@@ -50,6 +50,25 @@ struct GPUPanelTests {
         #expect(item.model.topApps == nil)
     }
 
+    @Test func hiddenSectionsSkipTheirReads() async throws {
+        let calls = Calls()
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        let (item, settings) = makeItem(calls: calls, readings: [try reading("clients-a")], dates: [t0, t0 + 2])
+        settings.setSectionShown(.gpuTopApps, false)
+        await item.refreshPanel()
+        // Details still gets its figures from one read, with no baseline pair and no app rows.
+        #expect(calls["panel"] == 1)
+        #expect(calls["temp"] == 1)
+        #expect(item.model.cores == 32)
+        #expect(item.model.topApps == nil)
+
+        settings.setSectionShown(.gpuDetails, false)
+        await item.refreshPanel()
+        #expect(calls["panel"] == 1)
+        #expect(calls["temp"] == 1)
+        #expect(item.model.temperature == nil)
+    }
+
     @Test func openPanelFillsDetailsAndTopApps() async throws {
         let calls = Calls()
         let t0 = Date(timeIntervalSince1970: 1_000)

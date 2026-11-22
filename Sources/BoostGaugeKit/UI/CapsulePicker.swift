@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// A segmented control drawn as a capsule track with a raised thumb under the selection. The thumb can take a
-/// colour per option (Low Power's yellow). VoiceOver sees a native segmented picker; each segment is a button,
-/// so it also works from the keyboard.
+/// colour per option (Low Power's yellow). VoiceOver sees a native segmented picker; each segment is a plain
+/// button, so with Keyboard Navigation on, Tab reaches each segment and Space picks it.
 struct CapsulePicker<Value: Hashable>: View {
     struct Option {
         let value: Value

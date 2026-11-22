@@ -118,7 +118,12 @@ struct CPUItemTests {
         #expect(item.model.temperatureText == "—")
         ctx.settings.setSectionShown(.cpuDetails, true)
         item.refreshDetails()
-        #expect(reads == 1)
+        ctx.settings.setSectionShown(.cpuDetails, false)
+        item.refreshDetails()
+        #expect(item.model.temperatureText == "—", "a hidden section drops its old reading")
+        ctx.settings.setSectionShown(.cpuDetails, true)
+        item.refreshDetails()
+        #expect(reads == 2)
         #expect(item.model.temperatureText == "50°C")
     }
 
@@ -136,5 +141,7 @@ struct CPUItemTests {
         #expect(CPUCores.text(efficiency: 4, performance: 6) == "4 Efficiency · 6 Performance")
         #expect(CPUCores.text(efficiency: 0, performance: 8) == "8")
         #expect(CPUCores.text(efficiency: 0, performance: 0) == "—")
+        // Intel: no perflevel sysctls, so the logical core count stands in.
+        #expect(CPUCores.text(efficiency: 0, performance: 0, logical: 8) == "8")
     }
 }

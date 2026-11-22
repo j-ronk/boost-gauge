@@ -132,7 +132,7 @@ enum GPUHistory {
 
     private func clearPanelState() {
         baseline = nil
-        model.topApps = nil
+        if model.topApps != nil { model.topApps = nil }
     }
 
     func refreshPanel() async {
@@ -142,6 +142,16 @@ enum GPUHistory {
         let temperature = settings.isSectionShown(.gpuDetails) ? readTemperature() : nil
         if model.temperature != temperature { model.temperature = temperature }
         let readPanel = readPanel
+        guard settings.isSectionShown(.gpuTopApps) else {
+            // No rows to fill: one read for the Details figures, and no per-process sampling or name lookups.
+            clearPanelState()
+            guard settings.isSectionShown(.gpuDetails) else { return }
+            let reading = await Task.detached(priority: .utility) { readPanel() }.value
+            guard !Task.isCancelled else { return }
+            if model.memoryBytes != reading.memoryBytes { model.memoryBytes = reading.memoryBytes }
+            if model.cores != reading.cores { model.cores = reading.cores }
+            return
+        }
         let start: (gpuTime: [pid_t: UInt64], at: Date)
         if let baseline {
             start = baseline

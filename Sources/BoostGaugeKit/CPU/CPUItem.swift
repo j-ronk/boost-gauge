@@ -25,18 +25,19 @@ struct ProcessRow: Identifiable {
     var temperatureUnit = TemperatureUnit.celsius
     var efficiencyCores = 0
     var performanceCores = 0
+    var logicalCores = ProcessInfo.processInfo.activeProcessorCount
 
     var labelValue: String { total.map(Format.percent) ?? "—" }
     var temperatureText: String { temperature.map { SensorSummary.format($0, temperatureUnit) } ?? "—" }
     var hottestSensorText: String { hottestSensor.map { SensorSummary.format($0, temperatureUnit) } ?? "—" }
-    var coresText: String { CPUCores.text(efficiency: efficiencyCores, performance: performanceCores) }
+    var coresText: String { CPUCores.text(efficiency: efficiencyCores, performance: performanceCores, logical: logicalCores) }
 }
 
 enum CPUCores {
     /// "4 Efficiency · 6 Performance"; a Mac without the perflevel split (Intel) shows its plain core count.
-    static func text(efficiency: Int, performance: Int) -> String {
+    static func text(efficiency: Int, performance: Int, logical: Int = 0) -> String {
         if efficiency > 0, performance > 0 { return "\(efficiency) Efficiency · \(performance) Performance" }
-        let total = efficiency + performance
+        let total = efficiency + performance > 0 ? efficiency + performance : logical
         return total > 0 ? "\(total)" : "—"
     }
 }
@@ -95,7 +96,12 @@ enum CPUCores {
 
     /// Temperatures are read only while the panel is open, like the GPU panel's.
     func refreshDetails() {
-        guard settings.isSectionShown(.cpuDetails) else { return }
+        guard settings.isSectionShown(.cpuDetails) else {
+            // Re-shown, the section must not flash readings from before it was hidden.
+            if model.temperature != nil { model.temperature = nil }
+            if model.hottestSensor != nil { model.hottestSensor = nil }
+            return
+        }
         // Observable notifies on every write, equal or not; skip no-op writes so the panel doesn't redraw.
         if model.temperatureUnit != settings.temperatureUnit { model.temperatureUnit = settings.temperatureUnit }
         let summary = readTemperatures()

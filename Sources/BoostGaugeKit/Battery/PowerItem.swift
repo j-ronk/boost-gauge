@@ -47,7 +47,8 @@ import SwiftUI
 
     /// Fans sit in the Power section, so they aren't read while it's hidden.
     private func readFansIfShown() {
-        model.fans = settings.isSectionShown(.powerPower) ? readFans() : []
+        let fans = settings.isSectionShown(.powerPower) ? readFans() : []
+        if model.fans != fans { model.fans = fans }
     }
 
     public func panelDidClose() {

@@ -167,7 +167,8 @@ struct EnergyUser: Identifiable {
 
     /// Fans sit in the Power section, so they aren't read while it's hidden.
     private func readFansIfShown() {
-        model.fans = ctx.settings.isSectionShown(.batteryPower) ? readFans() : []
+        let fans = ctx.settings.isSectionShown(.batteryPower) ? readFans() : []
+        if model.fans != fans { model.fans = fans }
     }
 
     private func read(now: Date, fresh: Bool) {
