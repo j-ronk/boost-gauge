@@ -1,0 +1,12 @@
+// Signing and bundle IDs for every target. Don't edit this file. Copy it to Config/Signing.local.xcconfig
+// (gitignored), put your own values there, and they override these placeholders.
+
+// Your 10-character Apple Developer Team ID. Builds without one won't sign, and the helper refuses to run.
+DEVELOPMENT_TEAM =
+
+// Reverse-DNS prefix you own. The app is <prefix>.Vitals and the helper <prefix>.Vitals.Helper.
+VITALS_BUNDLE_PREFIX = com.example
+
+VITALS_APP_BUNDLE_ID = $(VITALS_BUNDLE_PREFIX).Vitals
+
+#include? "Signing.local.xcconfig"

@@ -1,0 +1,14 @@
+.superpowers/
+.build/
+.swiftpm/
+spike/
+DerivedData/
+xcuserdata/
+.DS_Store
+build/
+Vitals.xcodeproj/
+Config/Signing.local.xcconfig
+
+# Private working notes and agent docs
+NOTES.md
+docs/superpowers/

@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+	<dict>
+		<key>CFBundleIdentifier</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>CFBundleIdentifierKernel</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>IOClass</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOGeneralInterest</key>
+		<string>IOCommand is not serializable</string>
+		<key>IOMatchCategory</key>
+		<string>IODefaultMatchCategory</string>
+		<key>IOMatchedAtBoot</key>
+		<true/>
+		<key>IOObjectClass</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOObjectRetainCount</key>
+		<integer>7</integer>
+		<key>IOPersonalityPublisher</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>IOPowerManagement</key>
+		<dict>
+			<key>CapabilityFlags</key>
+			<integer>0</integer>
+			<key>CurrentPowerState</key>
+			<integer>0</integer>
+		</dict>
+		<key>IOProbeScore</key>
+		<integer>0</integer>
+		<key>IOPropertyMatch</key>
+		<dict>
+			<key>device-type</key>
+			<string>Generic</string>
+		</dict>
+		<key>IOProviderClass</key>
+		<string>IOBlockStorageDevice</string>
+		<key>IORegistryEntryID</key>
+		<integer>4294970179</integer>
+		<key>IORegistryEntryName</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOServiceBusyState</key>
+		<integer>0</integer>
+		<key>IOServiceBusyTime</key>
+		<integer>291298958</integer>
+		<key>IOServiceState</key>
+		<integer>30</integer>
+		<key>Statistics</key>
+		<dict>
+			<key>Bytes (Read)</key>
+			<integer>50098949632</integer>
+			<key>Bytes (Write)</key>
+			<integer>113909248</integer>
+			<key>Errors (Read)</key>
+			<integer>1</integer>
+			<key>Errors (Write)</key>
+			<integer>0</integer>
+			<key>Latency Time (Read)</key>
+			<integer>0</integer>
+			<key>Latency Time (Write)</key>
+			<integer>0</integer>
+			<key>Operations (Read)</key>
+			<integer>20111</integer>
+			<key>Operations (Write)</key>
+			<integer>9370</integer>
+			<key>Retries (Read)</key>
+			<integer>0</integer>
+			<key>Retries (Write)</key>
+			<integer>0</integer>
+			<key>Total Time (Read)</key>
+			<integer>3030571346513</integer>
+			<key>Total Time (Write)</key>
+			<integer>545372587909</integer>
+		</dict>
+	</dict>
+	<dict>
+		<key>CFBundleIdentifier</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>CFBundleIdentifierKernel</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>IOClass</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOGeneralInterest</key>
+		<string>IOCommand is not serializable</string>
+		<key>IOMatchCategory</key>
+		<string>IODefaultMatchCategory</string>
+		<key>IOMatchedAtBoot</key>
+		<true/>
+		<key>IOObjectClass</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOObjectRetainCount</key>
+		<integer>8</integer>
+		<key>IOPersonalityPublisher</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>IOPowerManagement</key>
+		<dict>
+			<key>CapabilityFlags</key>
+			<integer>0</integer>
+			<key>CurrentPowerState</key>
+			<integer>0</integer>
+		</dict>
+		<key>IOProbeScore</key>
+		<integer>0</integer>
+		<key>IOPropertyMatch</key>
+		<dict>
+			<key>device-type</key>
+			<string>Generic</string>
+		</dict>
+		<key>IOProviderClass</key>
+		<string>IOBlockStorageDevice</string>
+		<key>IORegistryEntryID</key>
+		<integer>4294970016</integer>
+		<key>IORegistryEntryName</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOServiceBusyState</key>
+		<integer>0</integer>
+		<key>IOServiceBusyTime</key>
+		<integer>40022458</integer>
+		<key>IOServiceState</key>
+		<integer>30</integer>
+		<key>Statistics</key>
+		<dict>
+			<key>Bytes (Read)</key>
+			<integer>1169022140416</integer>
+			<key>Bytes (Write)</key>
+			<integer>734157840384</integer>
+			<key>Errors (Read)</key>
+			<integer>0</integer>
+			<key>Errors (Write)</key>
+			<integer>0</integer>
+			<key>Latency Time (Read)</key>
+			<integer>0</integer>
+			<key>Latency Time (Write)</key>
+			<integer>0</integer>
+			<key>Operations (Read)</key>
+			<integer>24277613</integer>
+			<key>Operations (Write)</key>
+			<integer>23785426</integer>
+			<key>Retries (Read)</key>
+			<integer>0</integer>
+			<key>Retries (Write)</key>
+			<integer>0</integer>
+			<key>Total Time (Read)</key>
+			<integer>8689876669398</integer>
+			<key>Total Time (Write)</key>
+			<integer>1394577944568</integer>
+		</dict>
+	</dict>
+	<dict>
+		<key>CFBundleIdentifier</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>CFBundleIdentifierKernel</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>IOClass</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOGeneralInterest</key>
+		<string>IOCommand is not serializable</string>
+		<key>IOMatchCategory</key>
+		<string>IODefaultMatchCategory</string>
+		<key>IOMatchedAtBoot</key>
+		<true/>
+		<key>IOObjectClass</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOObjectRetainCount</key>
+		<integer>8</integer>
+		<key>IOPersonalityPublisher</key>
+		<string>com.apple.iokit.IOStorageFamily</string>
+		<key>IOPowerManagement</key>
+		<dict>
+			<key>CapabilityFlags</key>
+			<integer>0</integer>
+			<key>CurrentPowerState</key>
+			<integer>0</integer>
+		</dict>
+		<key>IOProbeScore</key>
+		<integer>0</integer>
+		<key>IOPropertyMatch</key>
+		<dict>
+			<key>device-type</key>
+			<string>Generic</string>
+		</dict>
+		<key>IOProviderClass</key>
+		<string>IOBlockStorageDevice</string>
+		<key>IORegistryEntryID</key>
+		<integer>4295020644</integer>
+		<key>IORegistryEntryName</key>
+		<string>IOBlockStorageDriver</string>
+		<key>IOServiceBusyState</key>
+		<integer>0</integer>
+		<key>IOServiceBusyTime</key>
+		<integer>29570666</integer>
+		<key>IOServiceState</key>
+		<integer>30</integer>
+		<key>Statistics</key>
+		<dict>
+			<key>Bytes (Read)</key>
+			<integer>424459264</integer>
+			<key>Bytes (Write)</key>
+			<integer>0</integer>
+			<key>Errors (Read)</key>
+			<integer>0</integer>
+			<key>Errors (Write)</key>
+			<integer>0</integer>
+			<key>Latency Time (Read)</key>
+			<integer>0</integer>
+			<key>Latency Time (Write)</key>
+			<integer>0</integer>
+			<key>Operations (Read)</key>
+			<integer>4752</integer>
+			<key>Operations (Write)</key>
+			<integer>0</integer>
+			<key>Retries (Read)</key>
+			<integer>0</integer>
+			<key>Retries (Write)</key>
+			<integer>0</integer>
+			<key>Total Time (Read)</key>
+			<integer>9672968761</integer>
+			<key>Total Time (Write)</key>
+			<integer>0</integer>
+		</dict>
+	</dict>
+</array>
+</plist>

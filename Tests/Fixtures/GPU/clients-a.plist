@@ -1,0 +1,531 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 176, WindowServer</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>342568589333</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9200281280708</integer>
+			</dict>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>10859416</integer>
+				<key>lastSubmittedTime</key>
+				<integer>8051296802958</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 176, WindowServer</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>34596750</integer>
+				<key>lastSubmittedTime</key>
+				<integer>8047323718250</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 182, loginwindow</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 441, AXVisualSupportA</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>14913291</integer>
+				<key>lastSubmittedTime</key>
+				<integer>8479673531833</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 459, iconservicesagen</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 434, Finder</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>60724291</integer>
+				<key>lastSubmittedTime</key>
+				<integer>8374586085125</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 467, Siri AI</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 428, MenuBarAgent</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 468, WallpaperAerials</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>385493750</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9164789940500</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 422, ControlCenter</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 501, VTDecoderXPCServ</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 447, AccessibilityVis</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 544, TextInputMenuAge</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 507, CursorUIViewServ</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 486, NotificationCent</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 181, runningboardd</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 595, Tailscale</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>27287916</integer>
+				<key>lastSubmittedTime</key>
+				<integer>26036599333</integer>
+			</dict>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>6019640625</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9200116350583</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 562, Crisp</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 633, VTDecoderXPCServ</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 290, storagekitd</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 682, avconferenced</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 472, replayd</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 573, TextInputSwitche</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 513, mediaanalysisd</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 814, GamePolicyAgent</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2216, com.apple.photos</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2220, VTDecoderXPCServ</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2244, coreautha</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2160, textunderstandin</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2471, com.apple.WebKit</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>13537458</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9190825191333</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2481, Safari</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>1921039208</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9200272244041</integer>
+			</dict>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>5957916</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9171750405833</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2486, com.apple.WebKit</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2482, ImageIOXPCServic</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>32353620375</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9200240048250</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2493, Herdr</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2570, com.apple.Safari</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 2575, com.apple.appkit</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>0</integer>
+				<key>lastSubmittedTime</key>
+				<integer>0</integer>
+			</dict>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>80250</integer>
+				<key>lastSubmittedTime</key>
+				<integer>8074341876083</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 3328, Bionic Helper</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 3249, Bionic</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>0</integer>
+				<key>lastSubmittedTime</key>
+				<integer>0</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 3870, node</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 12587, testmanagerd</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 15930, System Settings</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 15932, GeneralSettings</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 16007, ControlCenterSet</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 20148, UserNotification</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>15619625</integer>
+				<key>lastSubmittedTime</key>
+				<integer>8781360202416</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 20463, Activity Monitor</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array/>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 496, CampoRemoteServi</string>
+	</dict>
+	<dict>
+		<key>AppUsage</key>
+		<array>
+			<dict>
+				<key>API</key>
+				<string>Metal</string>
+				<key>accumulatedGPUTime</key>
+				<integer>14755000</integer>
+				<key>lastSubmittedTime</key>
+				<integer>9189984982875</integer>
+			</dict>
+		</array>
+		<key>IOObjectClass</key>
+		<string>AGXDeviceUserClient</string>
+		<key>IOUserClientCreator</key>
+		<string>pid 34729, Vitals</string>
+	</dict>
+</array>
+</plist>

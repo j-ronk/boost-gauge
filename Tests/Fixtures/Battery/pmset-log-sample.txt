@@ -1,0 +1,117 @@
+PM ASL data store: /var/log/powermanagement
+
+Time stamp                Domain              	Message                                                                    	Duration  	Delay     
+2026-11-17 18:09:37 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using Batt(Charge: 77)          
+2026-11-17 18:13:00 +0800 Assertions          	Summary- [System: PrevIdle PrevSleep DeclUser kCPU kDisp] Using AC(Charge: 77)          
+2026-11-17 19:09:10 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using Batt(Charge: 100)          
+2026-11-17 19:11:59 +0800 Assertions          	Summary- [System: PrevIdle PrevSleep DeclUser kCPU kDisp] Using AC(Charge: 100)          
+Sleep/Wakes since boot at 2026-11-17 17:54:07 +0800 :0   Dark Wake Count in this sleep cycle:0
+
+Time stamp                Domain              	Message                                                                    	Duration  	Delay     
+==========                ======              	=======                                                                    	========  	=====     
+UUID: (null)
+2026-11-17 19:58:07 +0800 Start               	powerd process is started                                                  	          
+2026-11-17 19:58:07 +0800 Assertions          	Summary- [System: No Assertions] Using AC(Charge: 98)          
+2026-11-17 19:58:08 +0800 Notification        	Display is turned on                                                       	          
+2026-11-17 19:58:09 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using AC(Charge: 98)          
+2026-11-17 19:58:59 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using Batt(Charge: 98)          
+Sleep/Wakes since boot at 2026-11-17 19:58:07 +0800 :0   Dark Wake Count in this sleep cycle:0
+
+Time stamp                Domain              	Message                                                                    	Duration  	Delay     
+==========                ======              	=======                                                                    	========  	=====     
+UUID: 460D7785-1AC6-42AB-BC79-47582EF45213
+2026-11-17 23:21:22 +0800 Notification        	Display is turned off                                                      	          
+2026-11-17 23:21:23 +0800 Assertions          	Summary- [System: DeclUser SRPrevSleep kCPU kDisp] Using Batt(Charge: 37)          
+2026-11-17 23:21:27 +0800 Assertions          	Summary- [System: DeclUser kDisp] Using Batt(Charge: 37)          
+2026-11-17 23:21:27 +0800 Sleep               	Entering Sleep state due to 'Clamshell Sleep':TCPKeepAlive=active Using Batt (Charge:37%) 8 secs    
+2026-11-17 23:21:29 +0800 PM Client Acks      	Delays to Sleep notifications: [com.apple.bluetooth.sleep is slow(1547 ms)]           
+2026-11-17 23:21:35 +0800 com.apple.sleepservices.sessionStarted	SleepService: window begins with cap time=180 secs                         	          
+2026-11-17 23:21:35 +0800 DarkWake            	DarkWake from Deep Idle [CDNP] : due to smc.sysState.Wake(0x70070000) USB-C_plug SMC.OutboxNotEmpty nub-spmi0.0x3E/ Using BATT (Charge:37%) 1 secs    
+2026-11-17 23:21:35 +0800 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+DriverReason:USB-C_plug - DriverDetails:                                   
+DriverReason:SMC.OutboxNotEmpty - DriverDetails:                           
+DriverReason:nub-spmi0.0x3E - DriverDetails:                               
+2026-11-17 23:21:35 +0800 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          1         	
+2026-11-17 23:21:35 +0800 WakeTime            	WakeTime: 0.189 sec                                                        	          
+2026-11-17 23:21:36 +0800 Kernel Client Acks  	
+2026-11-17 23:21:36 +0800 Kernel Client Acks  	Delays to Wake notifications: [Codec Output driver is slow(msg: SetState to 1)(77 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(102 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(123 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(198 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(202 ms)]           
+2026-11-17 23:21:36 +0800 Assertions          	Summary- [System: PrevIdle DeclUser PushSrvc SRPrevSleep IPushSrvc kCPU kDisp] Using AC(Charge: 37)          
+2026-11-17 23:21:36 +0800 com.apple.sleepservices.sessionTerminated	SleepService: window has terminated.                                       	          
+2026-11-17 23:21:36 +0800 Wake                	DarkWake to FullWake from Deep Idle [CDNVAP] : due to Notification Using AC (Charge:37%) 2 secs    
+2026-11-17 23:21:36 +0800 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+DriverReason:USB-C_plug - DriverDetails:                                   
+DriverReason:SMC.OutboxNotEmpty - DriverDetails:                           
+DriverReason:nub-spmi0.0x3E - DriverDetails:                               
+2026-11-17 23:21:36 +0800 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          1         	
+2026-11-17 23:21:36 +0800 Kernel Client Acks  	
+2026-11-17 23:21:36 +0800 Kernel Client Acks  	Delays to Wake notifications: [Codec Output driver is slow(msg: SetState to 1)(77 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(102 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(123 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(198 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(202 ms)]           
+2026-11-17 23:21:36 +0800 Notification        	Display is turned on                                                       	          
+Sleep/Wakes since boot at 2026-11-17 19:58:07 +0800 :1   Dark Wake Count in this sleep cycle:1
+
+Time stamp                Domain              	Message                                                                    	Duration  	Delay     
+==========                ======              	=======                                                                    	========  	=====     
+UUID: 9C6A3E2B-C0B5-4B3D-96C3-8FEED786C48B
+2026-11-17 23:21:38 +0800 Sleep               	Entering DarkWake state due to 'Notification Wake Back to Sleep':TCPKeepAlive=active Using AC (Charge:37%)           
+2026-11-17 23:21:38 +0800 Notification        	Display is turned off                                                      	          
+2026-11-17 23:22:21 +0800 Sleep               	Entering Sleep state due to 'Notification Wake Back to Sleep':TCPKeepAlive=active Using AC (Charge:37%) 35 secs   
+2026-11-17 23:22:26 +0800 Assertions          	Summary- [System: DeclUser SysAct kDisp] Using AC(Charge: 37)          
+2026-11-17 23:22:49 +0800 PM Client Acks      	Delays to Sleep notifications: [com.apple.audio.MacAudio is slow(624 ms)] [com.apple.bluetooth.sleep is slow(1540 ms)] [PLSleepWakeAgent timed out(28014 ms)]           
+2026-11-17 23:22:56 +0800 com.apple.sleepservices.sessionStarted	SleepService: window begins with cap time=180 secs                         	          
+2026-11-17 23:22:56 +0800 DarkWake            	DarkWake from Deep Idle [CDNP] : due to smc.sysState.Wake(0x70070000) wifibt SMC.OutboxNotEmpty/ Using AC (Charge:38%) 33 secs   
+2026-11-17 23:22:56 +0800 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+DriverReason:wifibt - DriverDetails:                                       
+DriverReason:SMC.OutboxNotEmpty - DriverDetails:                           
+2026-11-17 23:22:56 +0800 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          2         	
+2026-11-17 23:22:56 +0800 WakeTime            	WakeTime: 0.185 sec                                                        	          
+2026-11-17 23:22:56 +0800 Kernel Client Acks  	Delays to Sleep notifications: [powerd is slow(28035 ms)] 
+2026-11-17 23:22:56 +0800 Kernel Client Acks  	Delays to Wake notifications: [Codec Output driver is slow(msg: SetState to 1)(77 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(125 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(202 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(204 ms)]           
+2026-11-17 23:22:57 +0800 Assertions          	Summary- [System: PrevIdle DeclUser PushSrvc SRPrevSleep kCPU kDisp] Using AC(Charge: 38)          
+2026-11-17 23:22:58 +0800 com.apple.sleepservices.sessionTerminated	SleepService: window has terminated.                                       	          
+2026-11-17 23:23:29 +0800 Sleep               	Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using AC (Charge:39%) 474 secs  
+2026-11-17 23:23:30 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using AC(Charge: 39)          
+2026-11-17 23:23:40 +0800 PM Client Acks      	Delays to Sleep notifications: [com.apple.audio.MacAudio is slow(921 ms)] [com.apple.bluetooth.sleep is slow(1542 ms)] [PLSleepWakeAgent is slow(11301 ms)]           
+2026-11-17 23:31:23 +0800 com.apple.sleepservices.sessionStarted	SleepService: window begins with cap time=180 secs                         	          
+2026-11-17 23:31:23 +0800 DarkWake            	DarkWake from Deep Idle [CDNP] : due to NUB.SPMISw3IRQ nub-spmi0.0x02 rtc/Maintenance Using AC (Charge:39%) 10 secs   
+2026-11-17 23:31:23 +0800 WakeDetails         	DriverReason:NUB.SPMISw3IRQ - DriverDetails:                               
+DriverReason:nub-spmi0.0x02 - DriverDetails:                               
+DriverReason:rtc - DriverDetails:                                          
+2026-11-17 23:31:23 +0800 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          3         	
+2026-11-17 23:31:23 +0800 WakeTime            	WakeTime: 0.180 sec                                                        	          
+2026-11-17 23:31:23 +0800 Kernel Client Acks  	Delays to Sleep notifications: [powerd is slow(28035 ms)] 
+2026-11-17 23:31:23 +0800 Kernel Client Acks  	Delays to Wake notifications: [Codec Output driver is slow(msg: SetState to 1)(77 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(125 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(202 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(204 ms)] [powerd is slow(11330 ms)] [Port-MagSafe 3 driver is slow(msg: SetState to 2)(52 ms)] [Codec Output driver is slow(msg: DidChangeState to 1)(75 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(123 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(200 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(201 ms)]           
+2026-11-17 23:31:24 +0800 Assertions          	Summary- [System: PrevIdle DeclUser PushSrvc SRPrevSleep kCPU kDisp] Using AC(Charge: 50)          
+2026-11-17 23:31:25 +0800 com.apple.sleepservices.sessionTerminated	SleepService: window has terminated.                                       	          
+2026-11-17 23:31:33 +0800 Sleep               	Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using AC (Charge:51%) 440 secs  
+2026-11-17 23:32:01 +0800 PM Client Acks      	Delays to Sleep notifications: [AirPort configd plug-in is slow(285 ms)] [com.apple.audio.MacAudio is slow(619 ms)] [com.apple.bluetooth.sleep is slow(1543 ms)] [PLSleepWakeAgent timed out(28002 ms)]           
+2026-11-17 23:38:53 +0800 com.apple.sleepservices.sessionStarted	SleepService: window begins with cap time=180 secs                         	          
+2026-11-17 23:38:53 +0800 DarkWake            	DarkWake from Deep Idle [CDNPB] : due to smc.sysState.Wake(0x70070000) wifibt SMC.OutboxNotEmpty/ Using AC (Charge:51%)           
+2026-11-17 23:38:53 +0800 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+DriverReason:wifibt - DriverDetails:                                       
+DriverReason:SMC.OutboxNotEmpty - DriverDetails:                           
+2026-11-17 23:38:53 +0800 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          4         	
+2026-11-17 23:38:53 +0800 WakeTime            	WakeTime: 0.187 sec                                                        	          
+2026-11-17 23:38:53 +0800 Kernel Client Acks  	Delays to Sleep notifications: [powerd is slow(28035 ms)] 
+2026-11-17 23:38:53 +0800 Kernel Client Acks  	Delays to Wake notifications: [Codec Output driver is slow(msg: SetState to 1)(77 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(125 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(202 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(204 ms)] [powerd is slow(11330 ms)] [Port-MagSafe 3 driver is slow(msg: SetState to 2)(52 ms)] [Codec Output driver is slow(msg: DidChangeState to 1)(75 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(123 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(200 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(201 ms)] [powerd is slow(28030 ms)] [Port-MagSafe 3 driver is slow(msg: SetState to 2)(58 ms)] [Codec Output driver is slow(msg: DidChangeState to 1)(76 ms)] [AppleAVD driver is slow(msg: SetState to 2)(102 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(102 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(122 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(198 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(200 ms)]           
+2026-11-17 23:38:55 +0800 com.apple.sleepservices.sessionTerminated	SleepService: window has terminated.                                       	          
+2026-11-18 07:15:26 +0800 Wake                	DarkWake to FullWake from Deep Idle [CDNVA] : due to UserActivity Assertion Using AC (Charge:100%)           
+2026-11-18 07:15:26 +0800 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+DriverReason:wifibt - DriverDetails:                                       
+DriverReason:SMC.OutboxNotEmpty - DriverDetails:                           
+2026-11-18 07:15:26 +0800 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          4         	
+2026-11-18 07:15:26 +0800 WakeTime            	WakeTime: 0.010 sec                                                        	          
+2026-11-18 07:15:26 +0800 Kernel Client Acks  	Delays to Sleep notifications: [powerd is slow(28035 ms)] 
+2026-11-18 07:15:26 +0800 Kernel Client Acks  	Delays to Wake notifications: [Codec Output driver is slow(msg: SetState to 1)(77 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(125 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(202 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(204 ms)] [powerd is slow(11330 ms)] [Port-MagSafe 3 driver is slow(msg: SetState to 2)(52 ms)] [Codec Output driver is slow(msg: DidChangeState to 1)(75 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(103 ms)] [AppleAVD driver is slow(msg: SetState to 2)(104 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(123 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(200 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(201 ms)] [powerd is slow(28030 ms)] [Port-MagSafe 3 driver is slow(msg: SetState to 2)(58 ms)] [Codec Output driver is slow(msg: DidChangeState to 1)(76 ms)] [AppleAVD driver is slow(msg: SetState to 2)(102 ms)] [RTBuddy(GFX) driver is slow(msg: SetState to 2)(102 ms)] [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(122 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(198 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(200 ms)]           
+2026-11-18 07:15:26 +0800 Notification        	Display is turned on                                                       	          
+2026-11-18 07:15:32 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using AC(Charge: 100)          
+2026-11-18 07:15:40 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using Batt(Charge: 100)          
+2026-11-18 17:29:19 +0800 Assertions          	Summary- [System: PrevIdle DeclUser IPushSrvc kCPU kDisp] Using Batt(Charge: 50)          
+2026-11-18 17:29:20 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using Batt(Charge: 50)          
+Sleep/Wakes since boot at 2026-11-17 19:58:07 +0800 :4   Dark Wake Count in this sleep cycle:3
+
+Time stamp                Domain              	Message                                                                    	Duration  	Delay     
+==========                ======              	=======                                                                    	========  	=====     
+UUID: 4A616860-5708-47FE-971C-5B4962BAE828
+2026-11-18 18:44:10 +0800 Notification        	Display is turned off                                                      	          
+2026-11-18 18:44:11 +0800 Assertions          	Summary- [System: DeclUser SRPrevSleep kCPU kDisp] Using Batt(Charge: 44)          
+2026-11-18 18:44:12 +0800 Notification        	Display is turned on                                                       	          
+2026-11-18 18:44:15 +0800 Assertions          	Summary- [System: PrevIdle DeclUser kDisp] Using Batt(Charge: 44)          

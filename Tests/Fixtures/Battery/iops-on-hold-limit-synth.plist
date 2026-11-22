@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Battery Provides Time Remaining</key>
+	<true/>
+	<key>Current</key>
+	<integer>0</integer>
+	<key>Current Capacity</key>
+	<integer>80</integer>
+	<key>DesignCycleCount</key>
+	<integer>300</integer>
+	<key>Is Charging</key>
+	<false/>
+	<key>Is Finishing Charge</key>
+	<false/>
+	<key>Is Present</key>
+	<true/>
+	<key>LPM Active</key>
+	<false/>
+	<key>Max Capacity</key>
+	<integer>100</integer>
+	<key>Name</key>
+	<string>InternalBattery-0</string>
+	<key>Power Source ID</key>
+	<integer>7864419</integer>
+	<key>Power Source State</key>
+	<string>AC Power</string>
+	<key>Time to Empty</key>
+	<integer>0</integer>
+	<key>Time to Full Charge</key>
+	<integer>0</integer>
+	<key>Transport Type</key>
+	<string>Internal</string>
+	<key>Type</key>
+	<string>InternalBattery</string>
+</dict>
+</plist>
