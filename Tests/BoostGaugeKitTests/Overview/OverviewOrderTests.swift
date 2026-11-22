@@ -159,6 +159,17 @@ struct OverviewSettingsPageTests {
         #expect(ctx.settings.overviewOrder.first == .network)
     }
 
+    @Test func draggingPastAHiddenContentsRowKeepsItHiddenAndInItsRow() {
+        let (model, ctx) = makeModel()
+        model.overviewStyle.wrappedValue = .tiles
+        ctx.settings.setOverviewMetricShown(.disk, false)
+        // Hidden rows stay listed (switched off), so offsets count them. Network, last, dragged above Disk.
+        model.moveMetrics(fromOffsets: IndexSet(integer: 6), toOffset: 3)
+        #expect(model.overviewMetrics == [.cpu, .gpu, .memory, .network, .disk, .hottest, .battery])
+        #expect(!ctx.settings.isOverviewMetricShown(.disk))
+        #expect(ctx.settings.isOverviewMetricShown(.network))
+    }
+
     @Test func draggingAGlyphRowMovesItsBar() {
         let (model, ctx) = makeModel()
         // Memory (third) dragged to the front.

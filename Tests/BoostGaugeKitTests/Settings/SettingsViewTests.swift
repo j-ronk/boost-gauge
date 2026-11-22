@@ -51,6 +51,15 @@ struct SettingsViewTests {
         #expect(AppSettings(defaults: suite.reopen()).itemOrder == ctx.settings.itemOrder)
     }
 
+    @Test func draggingPastAHiddenItemKeepsItHiddenAndInItsRow() {
+        let (model, ctx) = makeModel(TestDefaults())
+        ctx.settings.setShown(.temps, false)
+        // Switched-off items stay listed, so offsets count them. Disk (index 7) dragged above Temperatures.
+        model.move(fromOffsets: IndexSet(integer: 7), toOffset: 5)
+        #expect(ctx.settings.itemOrder == [.overview, .battery, .cpu, .gpu, .memory, .disk, .temps, .network, .power])
+        #expect(!ctx.settings.isShown(.temps))
+    }
+
     @Test func pageHistoryWalksBackAndForward() {
         var history = PaneHistory(.general)
         #expect(!history.canGoBack && !history.canGoForward)
