@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: scripts/release.sh <version> [--publish]      e.g. scripts/release.sh 1.1.0 --publish
-# Builds a Developer ID-signed, notarised, stapled build/release/BoostGauge-<version>.zip. Without --publish
+# Builds a Developer ID-signed, notarised, stapled build/release/BoostGauge-<version>.dmg. Without --publish
 # it prints the gh release command; with it, it pushes the current branch and creates the GitHub release. Needs a "Developer ID Application" certificate for the team in
 # Config/Signing.local.xcconfig and a notarytool keychain profile (default boostgauge-notary, or set
 # BOOSTGAUGE_NOTARY_PROFILE), created once with `xcrun notarytool store-credentials boostgauge-notary`.
@@ -48,7 +48,8 @@ build_number=$(git rev-list --count HEAD)
 out="$root/build/release"
 derived="$out/DerivedData"
 app="$derived/Build/Products/Release/BoostGauge.app"
-zip="$out/BoostGauge-$version.zip"
+zip="$out/BoostGauge-$version.zip"   # scratch upload for the app notarisation
+dmg="$out/BoostGauge-$version.dmg"
 
 rm -rf "$out"
 mkdir -p "$out"
@@ -100,61 +101,88 @@ check_signed "$app"
 check_signed "$app/Contents/MacOS/BoostGaugeHelper"
 check_signed "$app/Contents/Frameworks/BoostGaugeKit.framework"
 
-# --- Notarise, staple, re-zip.
-ditto -c -k --keepParent "$app" "$zip"
-echo "Submitting to the notary service (can take several minutes)..."
-submit_json="$out/notary-submit.json"
-set +e
-xcrun notarytool submit "$zip" --keychain-profile "$profile" --wait --timeout 30m --output-format json > "$submit_json"
-submit_status=$?
-set -e
-read -r sub_id sub_state < <(/usr/bin/python3 -c '
+# --- Notarise and staple. The app is notarised and stapled on its own first so it still passes
+# Gatekeeper offline after being dragged out of the DMG; the DMG then gets its own submission.
+notarise() {
+  local file=$1 json="$out/notary-submit.json" st id state
+  set +e
+  xcrun notarytool submit "$file" --keychain-profile "$profile" --wait --timeout 30m --output-format json > "$json"
+  st=$?
+  set -e
+  read -r id state < <(/usr/bin/python3 -c '
 import json, sys
 try:
     d = json.load(open(sys.argv[1]))
 except Exception:
     d = {}
 print(d.get("id", "-"), d.get("status", "unknown"))
-' "$submit_json")
-if [ "$sub_state" != "Accepted" ]; then
-  echo "Notarisation ended as '$sub_state' (notarytool exit $submit_status, submission $sub_id)." >&2
-  cat "$submit_json" >&2
-  if [ "$sub_id" != "-" ]; then xcrun notarytool log "$sub_id" --keychain-profile "$profile" >&2 || true; fi
-  fail "notarisation failed"
-fi
-echo "  notarised: submission $sub_id (check later with: xcrun notarytool info $sub_id --keychain-profile $profile)"
-
+' "$json")
+  if [ "$state" != "Accepted" ]; then
+    echo "Notarisation ended as '$state' (notarytool exit $st, submission $id)." >&2
+    cat "$json" >&2
+    if [ "$id" != "-" ]; then xcrun notarytool log "$id" --keychain-profile "$profile" >&2 || true; fi
+    fail "notarisation failed"
+  fi
+  echo "  notarised ${file##*/}: submission $id (check later with: xcrun notarytool info $id --keychain-profile $profile)"
+}
 # The ticket can take a minute or two to reach Apple's CDN after Accepted, so retry before failing.
-i=0
-until xcrun stapler staple "$app" >/dev/null 2>&1 || [ $i -ge 8 ]; do sleep 15; i=$((i + 1)); done
-xcrun stapler staple "$app"
-xcrun stapler validate "$app"
-rm -f "$zip"
-ditto -c -k --keepParent "$app" "$zip"
+staple() {
+  local i=0
+  until xcrun stapler staple "$1" >/dev/null 2>&1 || [ $i -ge 8 ]; do sleep 15; i=$((i + 1)); done
+  xcrun stapler staple "$1"
+  xcrun stapler validate "$1"
+}
 
-# Check what ships: unpack the final zip and assess that copy, not the build output.
-unpacked="$out/verify"
-ditto -x -k "$zip" "$unpacked"
-xcrun stapler validate "$unpacked/BoostGauge.app"
-assessment=$(spctl -a -vv -t exec "$unpacked/BoostGauge.app" 2>&1) || { echo "$assessment" >&2; fail "spctl rejected the app in the zip"; }
+ditto -c -k --keepParent "$app" "$zip"
+echo "Submitting the app to the notary service (can take several minutes)..."
+notarise "$zip"
+staple "$app"
+rm -f "$zip"
+
+# --- Build the DMG: the app plus an Applications shortcut. No Finder layout script, so no
+# automation permission prompts.
+echo "Building the DMG..."
+stage="$out/dmg-stage"
+mkdir -p "$stage"
+ditto "$app" "$stage/BoostGauge.app"
+ln -s /Applications "$stage/Applications"
+hdiutil create -volname "Boost Gauge" -srcfolder "$stage" -fs HFS+ -format UDZO -ov -quiet "$dmg"
+rm -rf "$stage"
+codesign --force --timestamp --sign "$identity" "$dmg"
+echo "Submitting the DMG to the notary service..."
+notarise "$dmg"
+staple "$dmg"
+
+# Check what ships: assess the DMG itself, then the app copy inside it.
+assessment=$(spctl -a -vv -t open --context context:primary-signature "$dmg" 2>&1) || { echo "$assessment" >&2; fail "spctl rejected the DMG"; }
+echo "$assessment" | sed 's/^/  /'
+grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the DMG but not as Notarized Developer ID"
+mnt="$out/mnt"
+mkdir -p "$mnt"
+hdiutil attach -nobrowse -readonly -quiet -mountpoint "$mnt" "$dmg" || fail "could not mount the DMG"
+detach() { hdiutil detach -quiet "$mnt" || hdiutil detach -force -quiet "$mnt"; }
+[ -L "$mnt/Applications" ] && [ "$(readlink "$mnt/Applications")" = "/Applications" ] || { detach; fail "DMG has no Applications link"; }
+xcrun stapler validate "$mnt/BoostGauge.app" || { detach; fail "app inside the DMG is not stapled"; }
+assessment=$(spctl -a -vv -t exec "$mnt/BoostGauge.app" 2>&1) || { echo "$assessment" >&2; detach; fail "spctl rejected the app in the DMG"; }
+detach
 echo "$assessment" | sed 's/^/  /'
 grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the app but not as Notarized Developer ID"
-rm -rf "$unpacked"
+rmdir "$mnt"
 
 # --- Hand over, or publish when asked to with --publish.
-sha=$(shasum -a 256 "$zip" | awk '{print $1}')
-notes="Needs macOS 27 on Apple Silicon. Unzip and move Boost Gauge to Applications. The first time you switch Energy Mode, allow the Boost Gauge helper once in System Settings > General > Login Items. SHA-256: $sha"
+sha=$(shasum -a 256 "$dmg" | awk '{print $1}')
+notes="Needs macOS 27 on Apple Silicon. Open the DMG and drag Boost Gauge to Applications. The first time you switch Energy Mode, allow the Boost Gauge helper once in System Settings > General > Login Items. SHA-256: $sha"
 echo
-echo "Built $zip"
+echo "Built $dmg"
 echo "SHA-256: $sha"
 echo
 if [ $publish -eq 1 ]; then
   echo "Publishing v$version..."
   git push origin HEAD
-  gh release create "v$version" "$zip" --target "$commit" --title "Boost Gauge $version" --notes "$notes"
+  gh release create "v$version" "$dmg" --target "$commit" --title "Boost Gauge $version" --notes "$notes"
   git fetch -q --tags origin
   exit 0
 fi
 echo "To publish, rerun with --publish, or push $commit and run:"
 # Plain single quotes are safe: version is digits and dots, and the notes contain no single quote.
-echo "gh release create v$version build/release/BoostGauge-$version.zip --target $commit --title 'Boost Gauge $version' --notes '$notes'"
+echo "gh release create v$version build/release/BoostGauge-$version.dmg --target $commit --title 'Boost Gauge $version' --notes '$notes'"
