@@ -39,7 +39,9 @@ public enum PanelSectionID: String, CaseIterable, Sendable {
         case .batteryEnergyMode: "Energy Mode"
         case .batteryHistory: "History"
         case .batteryPower, .powerPower: "Power"
-        case .batteryPowerChart, .gpuChart, .networkChart, .powerChart: "Last 10 Minutes"
+        // Beside the Power toggle, "Last 10 Minutes" wouldn't say which chart.
+        case .batteryPowerChart: "Power Chart"
+        case .gpuChart, .networkChart, .powerChart: "Last 10 Minutes"
         case .batteryHealth: "Health"
         case .batteryUsingEnergy: "Using Energy"
         case .cpuCores: "Cores Chart"
