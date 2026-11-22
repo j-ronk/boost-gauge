@@ -1,7 +1,7 @@
 #!/bin/bash
-# Usage: scripts/release.sh <version>      e.g. scripts/release.sh 1.0.0
-# Builds a Developer ID-signed, notarised, stapled build/release/BoostGauge-<version>.zip and prints the
-# gh release command. Needs a "Developer ID Application" certificate for the team in
+# Usage: scripts/release.sh <version> [--publish]      e.g. scripts/release.sh 1.1.0 --publish
+# Builds a Developer ID-signed, notarised, stapled build/release/BoostGauge-<version>.zip. Without --publish
+# it prints the gh release command; with it, it pushes the current branch and creates the GitHub release. Needs a "Developer ID Application" certificate for the team in
 # Config/Signing.local.xcconfig and a notarytool keychain profile (default boostgauge-notary, or set
 # BOOSTGAUGE_NOTARY_PROFILE), created once with `xcrun notarytool store-credentials boostgauge-notary`.
 set -euo pipefail
@@ -10,8 +10,16 @@ root=$(pwd)
 
 fail() { echo "release: $*" >&2; exit 1; }
 
-version=${1:-}
-[ $# -eq 1 ] || { echo "usage: scripts/release.sh <version>" >&2; exit 2; }
+usage() { echo "usage: scripts/release.sh <version> [--publish]" >&2; exit 2; }
+version="" publish=0
+for arg in "$@"; do
+  case "$arg" in
+    --publish) publish=1 ;;
+    -*) usage ;;
+    *) [ -z "$version" ] || usage; version=$arg ;;
+  esac
+done
+[ -n "$version" ] || usage
 printf '%s' "$version" | grep -Eqx '[0-9]+\.[0-9]+(\.[0-9]+)?' || fail "version must look like 1.0.0, got '$version'"
 
 profile=${BOOSTGAUGE_NOTARY_PROFILE:-boostgauge-notary}
@@ -28,6 +36,12 @@ identity=$(security find-identity -v -p codesigning \
 xcrun notarytool history --keychain-profile "$profile" >/dev/null 2>&1 \
   || fail "notary keychain profile '$profile' not found or not working; run: xcrun notarytool store-credentials $profile"
 [ -z "$(git status --porcelain)" ] || fail "git tree is dirty; commit or stash first so the release matches a commit"
+if [ $publish -eq 1 ]; then
+  command -v gh >/dev/null || fail "gh not found (brew install gh)"
+  gh auth status >/dev/null 2>&1 || fail "gh is not logged in; run: gh auth login"
+  git symbolic-ref -q HEAD >/dev/null || fail "HEAD is detached; check out the branch to release from"
+  if gh release view "v$version" >/dev/null 2>&1; then fail "release v$version already exists on GitHub"; fi
+fi
 
 commit=$(git rev-parse HEAD)
 build_number=$(git rev-list --count HEAD)
@@ -127,13 +141,20 @@ echo "$assessment" | sed 's/^/  /'
 grep -q 'source=Notarized Developer ID' <<<"$assessment" || fail "spctl accepted the app but not as Notarized Developer ID"
 rm -rf "$unpacked"
 
-# --- Hand over. Not run here: publishing is the maintainer's call.
+# --- Hand over, or publish when asked to with --publish.
 sha=$(shasum -a 256 "$zip" | awk '{print $1}')
 notes="Needs macOS 27 on Apple Silicon. Unzip and move Boost Gauge to Applications. The first time you switch Energy Mode, allow the Boost Gauge helper once in System Settings > General > Login Items. SHA-256: $sha"
 echo
 echo "Built $zip"
 echo "SHA-256: $sha"
 echo
-echo "To publish (push $commit first):"
+if [ $publish -eq 1 ]; then
+  echo "Publishing v$version..."
+  git push origin HEAD
+  gh release create "v$version" "$zip" --target "$commit" --title "Boost Gauge $version" --notes "$notes"
+  git fetch -q --tags origin
+  exit 0
+fi
+echo "To publish, rerun with --publish, or push $commit and run:"
 # Plain single quotes are safe: version is digits and dots, and the notes contain no single quote.
 echo "gh release create v$version build/release/BoostGauge-$version.zip --target $commit --title 'Boost Gauge $version' --notes '$notes'"
