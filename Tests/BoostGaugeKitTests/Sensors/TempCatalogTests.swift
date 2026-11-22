@@ -65,6 +65,22 @@ struct TempCatalogTests {
         #expect(unknown.map(\.name) == ["CPU die 1", "CPU die 2", "GPU 1", "Battery"])
     }
 
+    /// M5 has super and performance levels, no efficiency: its last level is the performance cores.
+    @Test func m5NamesSuperAndPerformanceCores() {
+        let m5 = ChipInfo(family: .m(5), tier: .pro, efficiencyCores: 12, totalCores: 18)
+        let keys = Set(TempCatalog.coreKeys(.m(5)).map(\.key))
+        let cpu = TempCatalog.entries(present: keys, chip: m5).filter { $0.group == .cpu }.map(\.name)
+        #expect(cpu == (1...6).map { "Super core \($0)" } + (1...12).map { "Performance core \($0)" })
+    }
+
+    @Test func hidGroups() {
+        #expect(TempCatalog.hidGroup("gas gauge battery") == .battery)
+        #expect(TempCatalog.hidGroup("PMU tdie3") == .powerManager)
+        #expect(TempCatalog.hidGroup("NAND CH0 temp") == .ssd)
+        #expect(TempCatalog.hidGroup("PMU tdev1") == nil)
+        #expect(TempCatalog.hidGroup("PMU tcal") == nil)
+    }
+
     @Test func m4GPUKeysFollowTier() {
         let base = ChipInfo(family: .m(4), tier: .base), max = ChipInfo(family: .m(4), tier: .max)
         let keys: Set<String> = ["Tg0G", "Tg1U", "Tg0K"]

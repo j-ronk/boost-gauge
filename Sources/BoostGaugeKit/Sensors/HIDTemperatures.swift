@@ -23,10 +23,11 @@ final class HIDTemperatures {
     private var services: [(product: String, service: AnyObject)]?
     private var client: AnyObject?
 
-    func read() -> [(product: String, celsius: Double)] {
+    /// Copies an event only from the services `wanted` keeps, so hidden groups cost nothing.
+    func read(_ wanted: (String) -> Bool) -> [(product: String, celsius: Double)] {
         let services = self.services ?? discover()
         self.services = services
-        return services.compactMap { entry in
+        return services.filter { wanted($0.product) }.compactMap { entry in
             guard let event = IOHIDServiceClientCopyEvent(entry.service, Self.temperatureEvent, 0, 0)?
                 .takeRetainedValue() else { return nil }
             return (entry.product, IOHIDEventGetFloatValue(event, Int32(Self.temperatureEvent << 16)))
@@ -41,12 +42,8 @@ final class HIDTemperatures {
         let all = IOHIDEventSystemClientCopyServices(client)?.takeRetainedValue() as? [AnyObject] ?? []
         return all.compactMap { service in
             guard let product = IOHIDServiceClientCopyProperty(service, "Product" as CFString)?
-                .takeRetainedValue() as? String, Self.isNamed(product) else { return nil }
+                .takeRetainedValue() as? String, TempCatalog.hidGroup(product) != nil else { return nil }
             return (product, service)
         }
-    }
-
-    static func isNamed(_ product: String) -> Bool {
-        product == "gas gauge battery" || product.hasPrefix("PMU tdie") || product.hasPrefix("NAND CH")
     }
 }

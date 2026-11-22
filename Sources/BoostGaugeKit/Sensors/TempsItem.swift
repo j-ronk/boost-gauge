@@ -9,6 +9,8 @@ import SwiftUI
     public private(set) var fans: [FanReading] = []
     /// The panel's per-sensor groups, read only while it's open.
     public private(set) var groups: [TempGroupReading] = []
+    /// False until the panel's first read, so it doesn't flash "Unavailable" as it opens.
+    private(set) var hasReadGroups = false
     /// Only groups the user has opened or closed; the rest follow `isExpandedByDefault`.
     private var expansion: [TempGroup: Bool]
     @ObservationIgnored private let readTemperatures: () -> [(name: String, celsius: Double)]
@@ -53,6 +55,7 @@ import SwiftUI
         let shown = Set(TempGroup.allCases.filter { ctx.settings.isSectionShown($0.section) })
         let groups = shown.isEmpty ? [] : readGroups(shown)
         if self.groups != groups { self.groups = groups }
+        if !hasReadGroups { hasReadGroups = true }
     }
 
     /// A one-sensor group is just its row; anything longer can open to show each sensor.

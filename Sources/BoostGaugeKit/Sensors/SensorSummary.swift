@@ -94,7 +94,14 @@ final class TemperatureReader {
             .compactMap { e in smc.value(e.key).map { (e.group, TempSensor(e.name, $0)) } }
         if !groups.isDisjoint(with: [.ssd, .battery, .powerManager]) {
             let hasSSD = entries.contains { $0.group == .ssd }
-            rows += TempCatalog.hidSensors(hid.read(), skipSSD: hasSSD).filter { groups.contains($0.group) }
+            let wanted: (String) -> Bool = { product in
+                switch TempCatalog.hidGroup(product) {
+                case .ssd?: !hasSSD && groups.contains(.ssd)
+                case let group?: groups.contains(group)
+                case nil: false
+                }
+            }
+            rows += TempCatalog.hidSensors(hid.read(wanted), skipSSD: hasSSD).filter { groups.contains($0.group) }
         }
         return TempCatalog.group(rows)
     }

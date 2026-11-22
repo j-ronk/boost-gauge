@@ -66,6 +66,7 @@ public struct ChipInfo: Equatable, Sendable {
 
     public var family: Family?
     public var tier: Tier
+    /// Cores in macOS's last performance level: the efficiency cores on most chips.
     public var efficiencyCores: Int
     public var totalCores: Int
 
@@ -209,8 +210,12 @@ public enum TempCatalog {
         var out: [Entry] = []
 
         let named = chip.family.map(coreKeys)?.filter { present.contains($0.key) } ?? []
-        let efficiency = named.filter { $0.kind == .efficiency }.count
-        if !named.isEmpty, efficiency == chip.efficiencyCores, named.count == chip.totalCores {
+        // macOS's last performance level is the table's lowest kind: efficiency cores, or performance cores on a
+        // chip with none (M5's levels are super and performance).
+        let table = chip.family.map(coreKeys) ?? []
+        let lowest: CoreKind = table.contains { $0.kind == .efficiency } ? .efficiency : .performance
+        let lowestCount = named.filter { $0.kind == lowest }.count
+        if !named.isEmpty, lowestCount == chip.efficiencyCores, named.count == chip.totalCores {
             var counts: [String: Int] = [:]
             for core in named {
                 let label = switch core.kind {
@@ -269,6 +274,14 @@ public enum TempCatalog {
             out.append((.powerManager, TempSensor("Die sensor \(i + 1)", dies[n]!)))
         }
         return out
+    }
+
+    /// The group a named HID service belongs to, nil for the ones the panel doesn't show.
+    public static func hidGroup(_ product: String) -> TempGroup? {
+        if product == "gas gauge battery" { return .battery }
+        if product.wholeMatch(of: /PMU tdie\d+/) != nil { return .powerManager }
+        if product.wholeMatch(of: /NAND CH\d+ temp/) != nil { return .ssd }
+        return nil
     }
 
     /// Unpopulated keys read 0, a few read negative, and some glitch to 127 or more.

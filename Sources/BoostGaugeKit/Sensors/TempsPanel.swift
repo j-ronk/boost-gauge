@@ -12,7 +12,7 @@ struct TempsPanel: View {
             if anyGroupSectionShown {
                 PanelSection("Sensors") {
                     if shownGroups.isEmpty {
-                        Text("Unavailable").foregroundStyle(.secondary)
+                        Text(item.hasReadGroups ? "Unavailable" : " ").foregroundStyle(.secondary)
                     } else {
                         CappedScroll(maxHeight: maxSensorsHeight) {
                             VStack(alignment: .leading, spacing: 6) {
