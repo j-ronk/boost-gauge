@@ -94,17 +94,16 @@ import SwiftUI
     /// Every level and glyph side by side, to check the fill steps smoothly and the glyphs read.
     struct LevelStrip: View {
         var showPercentage = true
-        var style = BatteryIcon.numberStyle
         var lowPower = false
         @Environment(\.colorScheme) private var scheme
         var body: some View {
             let tint: BatteryTint = lowPower ? .lowPower(dark: scheme == .dark) : .template
             HStack(spacing: 10) {
-                // 80 plugged is on hold (limit or optimised charging); 100 plugged is charged.
-                ForEach(Array([(0, BatteryGlyph.none), (5, .none), (20, .none), (34, .bolt), (50, .none),
-                               (80, .plug), (100, .plug), (100, .none)].enumerated()), id: \.offset) { _, level in
+                // On battery 5, 20, 54 and 100; charging 34; on hold at 80 and charged at 100 show the same bolt.
+                ForEach(Array([(5, BatteryGlyph.none), (20, .none), (54, .none), (34, .bolt), (80, .bolt), (100, .bolt),
+                               (100, .none)].enumerated()), id: \.offset) { _, level in
                     Image(nsImage: BatteryIcon.label(percent: level.0, glyph: level.1, showPercentage: showPercentage,
-                                                     style: style, tint: tint))
+                                                     tint: tint))
                         .renderingMode(lowPower ? .original : .template)
                 }
             }

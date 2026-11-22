@@ -291,7 +291,6 @@ struct EnergyUser: Identifiable {
         }
         variants.append(RenderVariant("levels", label: AnyView(BatterySamples.LevelStrip()), panel: nil))
         variants.append(RenderVariant("levels-no-percent", label: AnyView(BatterySamples.LevelStrip(showPercentage: false)), panel: nil))
-        variants.append(RenderVariant("levels-glyph-only", label: AnyView(BatterySamples.LevelStrip(style: .glyphOnly)), panel: nil))
         variants.append(RenderVariant("levels-low-power", label: AnyView(BatterySamples.LevelStrip(lowPower: true)), panel: nil))
         variants.append(RenderVariant("levels-low-power-no-percent",
                                       label: AnyView(BatterySamples.LevelStrip(showPercentage: false, lowPower: true)), panel: nil))

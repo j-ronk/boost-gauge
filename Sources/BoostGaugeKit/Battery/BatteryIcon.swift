@@ -1,6 +1,6 @@
 import AppKit
 
-enum BatteryGlyph: Hashable { case none, bolt, plug }
+enum BatteryGlyph: Hashable { case none, bolt }
 
 /// How the label is coloured.
 enum BatteryTint: Hashable {
@@ -9,14 +9,6 @@ enum BatteryTint: Hashable {
     /// Yellow charge, as the system shows in Low Power Mode. A template image can't carry colour, so the rest is
     /// drawn in the menu bar's label colour for the appearance the label sits on.
     case lowPower(dark: Bool)
-}
-
-/// How a charging or plugged-in glyph shares the body with the percentage.
-enum BatteryNumberStyle: Hashable {
-    /// Number with a small glyph after it, both inside the body.
-    case numberAndGlyph
-    /// The glyph replaces the number while plugged in.
-    case glyphOnly
 }
 
 /// The macOS 26 menu bar battery, drawn by hand so the fill tracks the exact percent
@@ -29,22 +21,31 @@ enum BatteryIcon {
         static let bodyRadius: CGFloat = 4
         static let nubGap: CGFloat = 1
         static let nub = CGSize(width: 1.5, height: 3.75)
-        // The empty part of the body and the terminal sit behind the charge, as in the system icon.
+        // The empty part of the body sits behind the charge, as in the system icon.
         static let dimAlpha: CGFloat = 0.4
-        // The bolt overhangs the body as in the system icon; the plug is wider, so it stays inside.
-        static func glyphHeight(_ glyph: BatteryGlyph) -> CGFloat { glyph == .plug ? 10 : 14 }
-        static func smallGlyphHeight(_ glyph: BatteryGlyph) -> CGFloat { glyph == .plug ? 7 : 8 }
+        // The native terminal is half ink at every level, full included.
+        static let nubAlpha: CGFloat = 0.5
+        // Without a number the bolt overhangs the body, as in the system icon.
+        static let glyphHeight: CGFloat = 14
         static let knockout: CGFloat = 1
+        // The native cut-outs keep 12% of the body's ink, in light and dark alike.
+        static let cutOut: CGFloat = 0.88
         static let numberSize: CGFloat = 10.5
         static let minNumberSize: CGFloat = 7.5
         static let numberWeight: NSFont.Weight = .medium
-        static let numberGlyphSpacing: CGFloat = 1
         static let numberPadding: CGFloat = 1.5
+        // Beside the bolt the native digits are smaller, regular weight and slightly tight, sitting 0.25 pt low.
+        static let numberWithGlyphSize: CGFloat = 9
+        static let numberWithGlyphWeight: NSFont.Weight = .regular
+        static let numberWithGlyphKern: CGFloat = -0.1
+        static let numberWithGlyphDrop: CGFloat = 0.25
+        static let numberWithGlyphInset: CGFloat = 2
+        // The native bolt's ink is wider than bolt.fill's own proportions.
+        static let smallGlyph = CGSize(width: 4.4, height: 6)
+        static let smallGlyphInset: CGFloat = 1
+        static let smallGlyphGap: CGFloat = 1
         static var iconWidth: CGFloat { (body.width + nubGap + nub.width).rounded(.up) }
     }
-
-    /// The lead picks between the two from the renders; this is the one the menu bar uses.
-    static let numberStyle: BatteryNumberStyle = .glyphOnly
 
     /// Where the body sits in the label image, in points.
     static var bodyRect: CGRect {
@@ -57,10 +58,10 @@ enum BatteryIcon {
         return max(1, innerWidth * CGFloat(p) / 100)
     }
 
+    /// macOS 27 shows the bolt whenever the Mac is on power, charging or not ("100" and a bolt when charged on AC).
     static func glyph(for state: ChargeState) -> BatteryGlyph {
         switch state {
-        case .charging: .bolt
-        case .charged, .onHold, .notCharging, .drainingOnAC: .plug
+        case .charging, .charged, .onHold, .notCharging, .drainingOnAC: .bolt
         case .onBattery: .none
         }
     }
@@ -73,7 +74,6 @@ enum BatteryIcon {
         let percent: Int
         let glyph: BatteryGlyph
         let showPercentage: Bool
-        let style: BatteryNumberStyle
         let tint: BatteryTint
     }
 
@@ -109,11 +109,9 @@ enum BatteryIcon {
     /// The percentage sits inside the body, as in macOS 26, so the item is the same width either way.
     /// Same inputs give the same image instance; see `LabelImageCache` for why that matters in the menu bar.
     @MainActor static func label(percent: Int, glyph: BatteryGlyph, showPercentage: Bool,
-                                 style: BatteryNumberStyle? = nil, tint: BatteryTint = .template) -> NSImage {
+                                 tint: BatteryTint = .template) -> NSImage {
         let percent = min(max(percent, 0), 100)
-        // Style only matters when a number and a glyph compete for the body; one key for the rest.
-        let style = showPercentage && glyph != .none ? style ?? numberStyle : .numberAndGlyph
-        let key = LabelKey(percent: percent, glyph: glyph, showPercentage: showPercentage, style: style, tint: tint)
+        let key = LabelKey(percent: percent, glyph: glyph, showPercentage: showPercentage, tint: tint)
         return labelCache.image(for: key) { draw(key) }
     }
 
@@ -148,13 +146,13 @@ enum BatteryIcon {
 
         let nub = CGRect(x: body.maxX + Metrics.nubGap, y: body.midY - Metrics.nub.height / 2,
                          width: Metrics.nub.width, height: Metrics.nub.height)
-        // The terminal never turns yellow; it goes solid at 100% either way.
-        (key.percent >= 100 ? palette.ink : dim(palette.ink)).set()
+        // The terminal never turns yellow.
+        palette.ink.withAlphaComponent(palette.ink.alphaComponent * Metrics.nubAlpha).set()
         halfCapsule(nub).fill()
 
-        if key.showPercentage && !(key.glyph != .none && key.style == .glyphOnly) {
+        if key.showPercentage {
             drawNumber(key, in: body, ctx: ctx)
-        } else if let mask = glyphImage(key.glyph, height: Metrics.glyphHeight(key.glyph)) {
+        } else if let mask = glyphImage(key.glyph, height: Metrics.glyphHeight) {
             let rect = CGRect(x: body.midX - mask.size.width / 2, y: body.midY - mask.size.height / 2,
                               width: mask.size.width, height: mask.size.height)
             // The knockout needs the opaque mask; the label colour can be translucent.
@@ -169,48 +167,54 @@ enum BatteryIcon {
         color.withAlphaComponent(color.alphaComponent * Metrics.dimAlpha)
     }
 
-    /// Digits cut right through the body, over the charge and the empty part alike, as in macOS 27.
+    /// Digits cut right through the body, over the charge and the empty part alike, as in macOS 27. On power a small
+    /// bolt sits 1 pt in from the body's end and the digits are centred in the room left of it.
     private static func drawNumber(_ key: LabelKey, in body: CGRect, ctx: CGContext) {
-        let full = body.width - 2 * Metrics.numberPadding
-        var glyph = glyphImage(key.glyph, height: Metrics.smallGlyphHeight(key.glyph))
-        var (line, ink) = fitted(key.percent, room: full - (glyph.map { $0.size.width + Metrics.numberGlyphSpacing } ?? 0))
-        // A number that can't fit beside the glyph keeps the body to itself rather than spill out of it.
-        if glyph != nil, ink.width > full - glyph!.size.width - Metrics.numberGlyphSpacing {
-            glyph = nil
-            (line, ink) = fitted(key.percent, room: full)
+        let bolt = key.glyph == .bolt ? smallBolt : nil
+        let glyphRect = bolt.map { _ in
+            CGRect(x: body.maxX - Metrics.smallGlyphInset - Metrics.smallGlyph.width,
+                   y: body.midY - Metrics.smallGlyph.height / 2, width: Metrics.smallGlyph.width, height: Metrics.smallGlyph.height)
         }
-        let glyphWidth = glyph.map { $0.size.width + Metrics.numberGlyphSpacing } ?? 0
+        let left = body.minX + (glyphRect == nil ? Metrics.numberPadding : Metrics.numberWithGlyphInset)
+        let right = glyphRect.map { $0.minX - Metrics.smallGlyphGap } ?? body.maxX - Metrics.numberPadding
+        // "100" fills the room beside the bolt, so let it reach into the usual padding before it shrinks.
+        let slack = glyphRect == nil ? 0 : Metrics.numberWithGlyphInset - Metrics.numberPadding
+        let (line, ink) = fitted(key.percent, room: right - left + slack, besideGlyph: glyphRect != nil)
         // Centre the digits' ink: advance widths carry side bearings and the line box carries descender space.
-        let inkLeft = body.midX - (ink.width + glyphWidth) / 2
+        let inkLeft = (left + right - ink.width) / 2
+        let inkMidY = body.midY - (glyphRect == nil ? 0 : Metrics.numberWithGlyphDrop)
         // CoreText takes the baseline itself; NSAttributedString.draw(at:) adds line spacing we'd have to guess.
         // It also drops the baseline to a whole device pixel, so round it to the nearest one first.
         let scale = max(1, abs(ctx.convertToDeviceSpace(CGSize(width: 1, height: 1)).height))
-        let pen = CGPoint(x: inkLeft - ink.minX, y: ((body.midY - ink.midY) * scale).rounded() / scale)
-        let glyphRect = glyph.map {
-            CGRect(x: inkLeft + ink.width + Metrics.numberGlyphSpacing, y: body.midY - $0.size.height / 2,
-                   width: $0.size.width, height: $0.size.height)
-        }
+        let pen = CGPoint(x: inkLeft - ink.minX, y: ((inkMidY - ink.midY) * scale).rounded() / scale)
 
         NSGraphicsContext.saveGraphicsState()
         NSBezierPath(roundedRect: body, xRadius: Metrics.bodyRadius, yRadius: Metrics.bodyRadius).addClip()
         ctx.setBlendMode(.destinationOut)
+        ctx.setAlpha(Metrics.cutOut)
+        // The fitted tracking is a tenth of a point; whole-pixel glyph positions would swamp it.
+        ctx.setAllowsFontSubpixelPositioning(true)
+        ctx.setShouldSubpixelPositionFonts(true)
+        ctx.setAllowsFontSubpixelQuantization(false)
+        ctx.setShouldSubpixelQuantizeFonts(false)
         ctx.textMatrix = .identity
         ctx.textPosition = pen
         CTLineDraw(line, ctx)
-        if let glyph, let glyphRect {
-            glyph.draw(in: glyphRect, from: .zero, operation: .destinationOut, fraction: 1)
+        if let bolt, let glyphRect {
+            bolt.draw(in: glyphRect, from: .zero, operation: .destinationOut, fraction: Metrics.cutOut)
         }
         NSGraphicsContext.restoreGraphicsState()
     }
 
     /// The largest number size whose ink fits `room`, down to the smallest that stays legible.
     /// The ink box is relative to the pen position on the baseline.
-    private static func fitted(_ percent: Int, room: CGFloat) -> (CTLine, CGRect) {
-        var size = Metrics.numberSize
+    private static func fitted(_ percent: Int, room: CGFloat, besideGlyph: Bool) -> (CTLine, CGRect) {
+        var size = besideGlyph ? Metrics.numberWithGlyphSize : Metrics.numberSize
         while true {
-            let font = NSFont.systemFont(ofSize: size, weight: Metrics.numberWeight)
+            let font = NSFont.systemFont(ofSize: size, weight: besideGlyph ? Metrics.numberWithGlyphWeight : Metrics.numberWeight)
             let line = CTLineCreateWithAttributedString(NSAttributedString(string: "\(percent)", attributes: [
-                .font: font, NSAttributedString.Key(kCTForegroundColorAttributeName as String): NSColor.black.cgColor,
+                .font: font, .kern: besideGlyph ? Metrics.numberWithGlyphKern : 0,
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String): NSColor.black.cgColor,
             ]))
             let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
             if ink.width <= room || size <= Metrics.minNumberSize { return (line, ink) }
@@ -242,16 +246,10 @@ enum BatteryIcon {
 
     /// The glyph as a solid colour at its final size, so drawing and knockouts use the same pixels.
     private static func glyphImage(_ glyph: BatteryGlyph, height: CGFloat, color: NSColor = .black) -> NSImage? {
-        let names: [String]
-        switch glyph {
-        case .none: return nil
-        case .bolt: names = ["bolt.fill"]
-        case .plug: names = ["powerplug.portrait.fill", "powerplug.fill"]
-        }
+        guard glyph == .bolt else { return nil }
         let config = NSImage.SymbolConfiguration(pointSize: height, weight: .bold)
-        guard let symbol = names.lazy.compactMap({
-            NSImage(systemSymbolName: $0, accessibilityDescription: nil)?.withSymbolConfiguration(config)
-        }).first else { return nil }
+        guard let symbol = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else { return nil }
         let scale = height / max(symbol.size.height, 1)
         let size = CGSize(width: symbol.size.width * scale, height: height)
         return NSImage(size: size, flipped: false) { rect in
@@ -261,4 +259,28 @@ enum BatteryIcon {
             return true
         }
     }
+
+    /// The bolt beside the number, trimmed to its ink: the symbol's image carries side padding, and the native bolt is
+    /// placed and sized by its ink. Drawn large once and scaled, so the trim is exact.
+    private static let smallBolt: NSImage? = {
+        guard let symbol = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 64, weight: .black)) else { return nil }
+        let width = Int(symbol.size.width.rounded(.up)) + 2, height = Int(symbol.size.height.rounded(.up)) + 2
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: width * 4, bitsPerPixel: 32), let data = rep.bitmapData else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        symbol.draw(in: CGRect(x: 1, y: 1, width: symbol.size.width, height: symbol.size.height))
+        NSGraphicsContext.restoreGraphicsState()
+        var minX = width, maxX = -1, minY = height, maxY = -1
+        for y in 0..<height {
+            for x in 0..<width where data[y * width * 4 + x * 4 + 3] > 127 {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, let ink = rep.cgImage?.cropping(to: CGRect(x: minX, y: minY, width: maxX - minX + 1,
+                                                                         height: maxY - minY + 1)) else { return nil }
+        return NSImage(cgImage: ink, size: Metrics.smallGlyph)
+    }()
 }

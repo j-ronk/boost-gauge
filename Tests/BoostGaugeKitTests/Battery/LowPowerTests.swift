@@ -46,7 +46,7 @@ struct LowPowerIconTests {
 
     /// Same shape as the template: the digits still cut through and nothing is drawn outside the battery.
     @Test func colouredKeepsTheTemplateShape() {
-        for (percent, glyph, show) in [(47, BatteryGlyph.none, true), (8, .none, true), (100, .plug, true), (34, .bolt, false)] {
+        for (percent, glyph, show) in [(47, BatteryGlyph.none, true), (8, .none, true), (100, .bolt, true), (34, .bolt, false)] {
             let template = Alpha(BatteryIcon.label(percent: percent, glyph: glyph, showPercentage: show))
             let coloured = Alpha(BatteryIcon.label(percent: percent, glyph: glyph, showPercentage: show, tint: .lowPower(dark: true)))
             #expect(template.width == coloured.width && template.height == coloured.height)
