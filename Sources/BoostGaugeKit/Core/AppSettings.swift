@@ -18,6 +18,7 @@ public enum CaptionAlignment: String, CaseIterable, Sendable { case center, lead
     private var storedNetworkUnit: NetworkUnit
     private var storedCaptionAlignment: CaptionAlignment
     private var storedItemOrder: [ItemID]
+    private var hiddenSections: Set<PanelSectionID>
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -30,6 +31,16 @@ public enum CaptionAlignment: String, CaseIterable, Sendable { case center, lead
         storedNetworkUnit = defaults.string(forKey: Keys.networkUnit).flatMap(NetworkUnit.init) ?? .bytes
         storedCaptionAlignment = defaults.string(forKey: Keys.captionAlignment).flatMap(CaptionAlignment.init) ?? .center
         storedItemOrder = ItemOrder.normalized(defaults.stringArray(forKey: Keys.itemOrder))
+        // Sections are on unless turned off, so settings saved before section toggles existed show everything.
+        hiddenSections = Set(PanelSectionID.allCases.filter { defaults.object(forKey: Self.sectionKey($0)) as? Bool == false })
+    }
+
+    public func isSectionShown(_ section: PanelSectionID) -> Bool { !hiddenSections.contains(section) }
+
+    public func setSectionShown(_ section: PanelSectionID, _ isShown: Bool) {
+        guard isShown != isSectionShown(section) else { return }
+        if isShown { hiddenSections.remove(section) } else { hiddenSections.insert(section) }
+        defaults.set(isShown, forKey: Self.sectionKey(section))
     }
 
     public func isShown(_ id: ItemID) -> Bool { shown.contains(id) }
@@ -94,6 +105,8 @@ public enum CaptionAlignment: String, CaseIterable, Sendable { case center, lead
     }
 
     private static func shownKey(_ id: ItemID) -> String { "item.\(id.rawValue).shown" }
+
+    static func sectionKey(_ section: PanelSectionID) -> String { "panel.\(section.rawValue).shown" }
 
     private static func validRefresh(_ value: Int?) -> Int {
         guard let value, allowedRefreshSeconds.contains(value) else { return defaultRefreshSeconds }

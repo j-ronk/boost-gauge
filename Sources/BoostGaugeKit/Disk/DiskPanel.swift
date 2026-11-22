@@ -8,7 +8,7 @@ struct DiskPanel: View {
         PanelChrome(footer: .app("Disk Utility…", bundleID: "com.apple.DiskUtility")) {
             PanelHeader(title: item.capacity?.name ?? "Disk", subtitle: item.capacity == nil ? nil : "Available",
                         bigValue: item.capacity.map { DiskStats.size($0.available) })
-            if let capacity = item.capacity, capacity.total > 0 {
+            if item.ctx.settings.isSectionShown(.diskStorage), let capacity = item.capacity, capacity.total > 0 {
                 PanelSection("Storage") {
                     let used = max(0, capacity.total - capacity.available)
                     ProgressView(value: Double(used), total: Double(capacity.total))
@@ -17,9 +17,11 @@ struct DiskPanel: View {
                     StatRow("Capacity", DiskStats.size(capacity.total))
                 }
             }
-            PanelSection("Activity") {
-                StatRow("Read", item.activity.map { NetworkCounters.rateText($0.read, unit: .bytes) } ?? "—")
-                StatRow("Write", item.activity.map { NetworkCounters.rateText($0.write, unit: .bytes) } ?? "—")
+            if item.ctx.settings.isSectionShown(.diskActivity) {
+                PanelSection("Activity") {
+                    StatRow("Read", item.activity.map { NetworkCounters.rateText($0.read, unit: .bytes) } ?? "—")
+                    StatRow("Write", item.activity.map { NetworkCounters.rateText($0.write, unit: .bytes) } ?? "—")
+                }
             }
         }
         .refreshing(every: .seconds(2)) {

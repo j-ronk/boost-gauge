@@ -8,14 +8,18 @@ struct NetworkPanel: View {
         PanelChrome(footer: .url("Network Settings…",
                                  URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")!)) {
             PanelHeader(title: "Network", subtitle: item.connection?.service ?? "Not Connected", bigValue: nil)
-            PanelSection("Speed") {
-                StatRow("Up", item.rate.map { NetworkCounters.rateText($0.up, unit: item.unit) } ?? "—")
-                StatRow("Down", item.rate.map { NetworkCounters.rateText($0.down, unit: item.unit) } ?? "—")
+            if settings.isSectionShown(.networkSpeed) {
+                PanelSection("Speed") {
+                    StatRow("Up", item.rate.map { NetworkCounters.rateText($0.up, unit: item.unit) } ?? "—")
+                    StatRow("Down", item.rate.map { NetworkCounters.rateText($0.down, unit: item.unit) } ?? "—")
+                }
             }
-            PanelSection("Last 10 Minutes") {
-                chart
+            if settings.isSectionShown(.networkChart) {
+                PanelSection("Last 10 Minutes") {
+                    chart
+                }
             }
-            if let connection = item.connection {
+            if settings.isSectionShown(.networkConnection), let connection = item.connection {
                 PanelSection("Connection") {
                     StatRow("Interface", connection.interface)
                     if let address = connection.address {
@@ -26,6 +30,8 @@ struct NetworkPanel: View {
         }
         .refreshing(every: .seconds(5)) { item.refreshPanel() }
     }
+
+    private var settings: AppSettings { item.ctx.settings }
 
     private struct Point: Identifiable {
         let date: Date

@@ -35,19 +35,28 @@ struct BatteryPanel: View {
 
     var body: some View {
         let snapshot = model.snapshot
+        let settings = ctx.settings
         PanelChrome(footer: .batterySettings) {
             PanelHeader(title: "Battery", subtitle: model.state?.headerText, bigValue: snapshot.map { "\($0.percent)%" })
-            if let energyMode = ctx.energyMode {
+            if let energyMode = ctx.energyMode, settings.isSectionShown(.batteryEnergyMode) {
                 energyMode.makeSection()
             }
-            HistorySection(model: model)
-            PowerSection(snapshot: snapshot, fans: model.fans, history: model.powerHistory)
-            PanelSection("Health") {
-                StatRow("Maximum Capacity", model.healthPercent.map { "\($0)%" } ?? "—")
-                StatRow("Cycle Count", snapshot.map { "\($0.cycleCount)" } ?? "—")
-                StatRow("Temperature", BatteryFormat.temperature(snapshot?.temperatureC, ctx.settings.temperatureUnit))
+            if settings.isSectionShown(.batteryHistory) {
+                HistorySection(model: model)
             }
-            UsingEnergySection(model: model)
+            PowerSection(snapshot: snapshot, fans: model.fans, history: model.powerHistory,
+                         showsRows: settings.isSectionShown(.batteryPower), showsChart: settings.isSectionShown(.batteryPowerChart))
+            if settings.isSectionShown(.batteryHealth) {
+                PanelSection("Health") {
+                    StatRow("Maximum Capacity", model.healthPercent.map { "\($0)%" } ?? "—")
+                    StatRow("Cycle Count", snapshot.map { "\($0.cycleCount)" } ?? "—")
+                    StatRow("Temperature", BatteryFormat.temperature(snapshot?.temperatureC, settings.temperatureUnit))
+                }
+            }
+            // Hidden, it never appears, so `top` doesn't run at all.
+            if settings.isSectionShown(.batteryUsingEnergy) {
+                UsingEnergySection(model: model)
+            }
         }
     }
 }

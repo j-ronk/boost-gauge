@@ -162,7 +162,12 @@ struct EnergyUser: Identifiable {
     public func tick(now: Date) {
         read(now: now, fresh: false)
         lowPower.refresh()
-        if panelOpen { model.fans = readFans() }
+        if panelOpen { readFansIfShown() }
+    }
+
+    /// Fans sit in the Power section, so they aren't read while it's hidden.
+    private func readFansIfShown() {
+        model.fans = ctx.settings.isSectionShown(.batteryPower) ? readFans() : []
     }
 
     private func read(now: Date, fresh: Bool) {
@@ -175,7 +180,7 @@ struct EnergyUser: Identifiable {
     public func panelDidOpen() {
         panelOpen = true
         read(now: .now, fresh: true)
-        model.fans = readFans()
+        readFansIfShown()
         model.reloadHistory()
         refreshHealth()
     }

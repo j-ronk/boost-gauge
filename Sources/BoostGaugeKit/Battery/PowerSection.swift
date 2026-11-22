@@ -42,15 +42,19 @@ struct PowerSection: View {
     let snapshot: BatterySnapshot?
     var fans: [FanReading] = []
     var history = PowerHistory()
+    var showsRows = true
+    var showsChart = true
 
     var body: some View {
-        PanelSection("Power") {
-            if let snapshot {
-                ForEach(PowerRows.rows(snapshot)) { StatRow($0.label, $0.value) }
+        if showsRows {
+            PanelSection("Power") {
+                if let snapshot {
+                    ForEach(PowerRows.rows(snapshot)) { StatRow($0.label, $0.value) }
+                }
+                ForEach(PowerRows.fanRows(fans)) { StatRow($0.label, $0.value) }
             }
-            ForEach(PowerRows.fanRows(fans)) { StatRow($0.label, $0.value) }
         }
-        if history.system.points.count > 1 {
+        if showsChart, history.system.points.count > 1 {
             PanelSection("Last 10 Minutes") { PowerChart(history: history) }
         }
     }

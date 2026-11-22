@@ -7,15 +7,17 @@ struct TempsPanel: View {
         PanelChrome(footer: .app("Activity Monitor…", bundleID: "com.apple.ActivityMonitor")) {
             PanelHeader(title: "Temperatures", subtitle: item.summary.hottest == nil ? nil : "Hottest sensor",
                         bigValue: item.summary.hottest.map(item.text))
-            PanelSection("Sensors") {
-                if rows.isEmpty {
-                    Text("Unavailable").foregroundStyle(.secondary)
-                }
-                ForEach(rows, id: \.name) { row in
-                    StatRow(row.name, item.text(row.celsius))
+            if settings.isSectionShown(.tempsSensors) {
+                PanelSection("Sensors") {
+                    if rows.isEmpty {
+                        Text("Unavailable").foregroundStyle(.secondary)
+                    }
+                    ForEach(rows, id: \.name) { row in
+                        StatRow(row.name, item.text(row.celsius))
+                    }
                 }
             }
-            if !item.fans.isEmpty {
+            if settings.isSectionShown(.tempsFans), !item.fans.isEmpty {
                 PanelSection("Fans") {
                     ForEach(item.fans, id: \.index) { fan in
                         StatRow("Fan \(fan.index + 1)", SensorSummary.rpm(fan.rpm))
@@ -25,6 +27,8 @@ struct TempsPanel: View {
         }
         .refreshing(every: .seconds(3)) { item.refreshPanel() }
     }
+
+    private var settings: AppSettings { item.ctx.settings }
 
     private var rows: [(name: String, celsius: Double)] {
         let s = item.summary

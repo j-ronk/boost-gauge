@@ -117,7 +117,7 @@ enum GPUHistory {
     }
 
     public var panel: AnyView {
-        AnyView(GPUPanel(model: model).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshPanel() })
+        AnyView(GPUPanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshPanel() })
     }
 
     public func panelDidOpen() {
@@ -138,7 +138,8 @@ enum GPUHistory {
     func refreshPanel() async {
         // Observable notifies on every write, equal or not; skip no-op writes so the panel doesn't redraw.
         if model.temperatureUnit != settings.temperatureUnit { model.temperatureUnit = settings.temperatureUnit }
-        let temperature = readTemperature()
+        // The SMC read is only for the Details row.
+        let temperature = settings.isSectionShown(.gpuDetails) ? readTemperature() : nil
         if model.temperature != temperature { model.temperature = temperature }
         let readPanel = readPanel
         let start: (gpuTime: [pid_t: UInt64], at: Date)
@@ -214,9 +215,9 @@ enum GPUHistory {
         return [
             RenderVariant("live", label: label, panel: panel),
             RenderVariant("sample", label: AnyView(StackedLabel(caption: "GPU", value: "100%", widest: "100%")),
-                          panel: AnyView(GPUPanel(model: busy))),
+                          panel: AnyView(GPUPanel(model: busy, settings: settings))),
             RenderVariant("empty", label: AnyView(StackedLabel(caption: "GPU", value: "—", widest: "100%")),
-                          panel: AnyView(GPUPanel(model: empty))),
+                          panel: AnyView(GPUPanel(model: empty, settings: settings))),
         ]
     }
 }

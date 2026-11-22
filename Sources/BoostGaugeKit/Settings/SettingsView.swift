@@ -28,6 +28,10 @@ import UniformTypeIdentifiers
         Binding(get: { self.settings.isShown(id) }, set: { self.settings.setShown(id, $0) })
     }
 
+    func sectionShown(_ section: PanelSectionID) -> Binding<Bool> {
+        Binding(get: { self.settings.isSectionShown(section) }, set: { self.settings.setSectionShown(section, $0) })
+    }
+
     var order: [ItemID] { settings.itemOrder }
 
     func move(fromOffsets source: IndexSet, toOffset destination: Int) {
@@ -131,13 +135,136 @@ import UniformTypeIdentifiers
     }
 }
 
+enum SettingsPane: Hashable {
+    case general, menuBar
+    case item(ItemID)
+
+    /// Power sits beside Battery, whose panel it shares sections with; the rest follow menu bar declaration order.
+    static let items: [ItemID] = [.battery, .power, .cpu, .gpu, .memory, .temps, .network, .disk]
+
+    @MainActor var title: String {
+        switch self {
+        case .general: "General"
+        case .menuBar: "Menu Bar"
+        case let .item(id): SettingsModel.title(id)
+        }
+    }
+
+    var icon: SettingsIcon {
+        switch self {
+        case .general: SettingsIcon(symbol: "gearshape.fill", color: .gray)
+        case .menuBar: SettingsIcon(symbol: "menubar.rectangle", color: .gray)
+        case .item(.battery): SettingsIcon(symbol: "battery.75percent", color: .green)
+        case .item(.power): SettingsIcon(symbol: "bolt.fill", color: .yellow)
+        case .item(.cpu): SettingsIcon(symbol: "cpu", color: .blue)
+        case .item(.gpu): SettingsIcon(symbol: "display", color: .indigo)
+        case .item(.memory): SettingsIcon(symbol: "memorychip", color: .teal)
+        case .item(.temps): SettingsIcon(symbol: "thermometer.medium", color: .orange)
+        case .item(.network): SettingsIcon(symbol: "arrow.up.arrow.down", color: .blue)
+        case .item(.disk): SettingsIcon(symbol: "internaldrive", color: .gray)
+        }
+    }
+}
+
+/// A white glyph on a coloured rounded square, as in System Settings' sidebar.
+struct SettingsIcon: View {
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(color.gradient))
+            .accessibilityHidden(true)
+    }
+}
+
 struct SettingsView: View {
+    let model: SettingsModel
+    @State private var pane: SettingsPane?
+
+    init(model: SettingsModel, pane: SettingsPane = .general) {
+        self.model = model
+        _pane = State(initialValue: pane)
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: $pane) {
+                Section {
+                    row(.general)
+                    row(.menuBar)
+                }
+                Section("Items") {
+                    ForEach(SettingsPane.items, id: \.self) { row(.item($0)) }
+                }
+            }
+            // The column width alone was ignored in offscreen renders; a minimum on the list holds it.
+            .frame(minWidth: 200)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 200, max: 200)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            let pane = pane ?? .general
+            detail(pane)
+                .formStyle(.grouped)
+                .navigationTitle(pane.title)
+        }
+        .frame(width: 700, height: 560)
+        .onAppear { model.refreshLoginItem() }
+    }
+
+    private func row(_ pane: SettingsPane) -> some View {
+        Label { Text(pane.title) } icon: { pane.icon }
+            .tag(pane)
+    }
+
+    @ViewBuilder private func detail(_ pane: SettingsPane) -> some View {
+        switch pane {
+        case .general: GeneralPage(model: model)
+        case .menuBar: MenuBarPage(model: model)
+        case let .item(id): ItemPage(model: model, id: id)
+        }
+    }
+}
+
+private struct GeneralPage: View {
+    let model: SettingsModel
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Launch at Login", isOn: model.launchAtLogin)
+                Picker("Refresh", selection: model.refreshSeconds) {
+                    ForEach(SettingsModel.refreshChoices, id: \.self) { Text($0.title).tag($0.seconds) }
+                }
+            }
+            Section("Units") {
+                Picker("Temperature", selection: model.temperatureUnit) {
+                    ForEach(TemperatureUnit.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                }
+                Picker("Network", selection: model.networkUnit) {
+                    ForEach(NetworkUnit.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
+                }
+            }
+            if let status = model.energyModeStatus {
+                Section("Energy Mode") {
+                    LabeledContent("Status", value: status)
+                    Button("Open Login Items…") { model.openLoginItems() }
+                }
+            }
+        }
+    }
+}
+
+private struct MenuBarPage: View {
     let model: SettingsModel
     @State private var dragging: ItemID?
 
     var body: some View {
         Form {
-            Section("Menu Bar") {
+            Section("Items") {
                 ForEach(model.order, id: \.self) { id in
                     Toggle(isOn: model.shown(id)) {
                         Label {
@@ -163,38 +290,33 @@ struct SettingsView: View {
                         Button("Move Down") { model.move(id, by: 1) }.disabled(!model.canMove(id, by: 1))
                     }
                 }
+            }
+            Section {
                 Toggle("Show Battery Percentage", isOn: model.showPercentage)
                     .disabled(!model.shown(.battery).wrappedValue)
-                Picker("Refresh", selection: model.refreshSeconds) {
-                    ForEach(SettingsModel.refreshChoices, id: \.self) { Text($0.title).tag($0.seconds) }
-                }
-            }
-            Section("Display") {
-                Picker("Temperature", selection: model.temperatureUnit) {
-                    ForEach(TemperatureUnit.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
-                }
-                Picker("Network", selection: model.networkUnit) {
-                    ForEach(NetworkUnit.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
-                }
                 Picker("Label Alignment", selection: model.captionAlignment) {
                     ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
                 }
             }
-            Section("General") {
-                Toggle("Launch at Login", isOn: model.launchAtLogin)
+        }
+    }
+}
+
+private struct ItemPage: View {
+    let model: SettingsModel
+    let id: ItemID
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show in Menu Bar", isOn: model.shown(id))
             }
-            if let status = model.energyModeStatus {
-                Section("Energy Mode") {
-                    LabeledContent("Status", value: status)
-                    Button("Open Login Items…") { model.openLoginItems() }
+            Section("Panel") {
+                ForEach(PanelSectionID.sections(of: id), id: \.self) { section in
+                    Toggle(section.title, isOn: model.sectionShown(section))
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollDisabled(true)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(width: 420)
-        .onAppear { model.refreshLoginItem() }
     }
 }
 

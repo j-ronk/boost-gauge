@@ -23,6 +23,16 @@ public enum SettingsFeature {
     }
 }
 
+public extension SettingsFeature {
+    /// Each Settings page for `--render`, named for the PNG.
+    @MainActor static func renderPages(_ ctx: AppContext) -> [(name: String, view: AnyView)] {
+        let model = SettingsModel(ctx)
+        let panes: [(String, SettingsPane)] = [("general", .general), ("menubar", .menuBar), ("cpu", .item(.cpu)),
+                                               ("battery", .item(.battery)), ("network", .item(.network))]
+        return panes.map { name, pane in (name, AnyView(SettingsView(model: model, pane: pane))) }
+    }
+}
+
 /// SwiftUI only opens the Settings scene from `SettingsLink` or `openSettings` inside a view, and an accessory app
 /// may have no view on screen at all. The app menu's Settings item is SwiftUI's own, and performing it works.
 @MainActor enum SettingsOpener {

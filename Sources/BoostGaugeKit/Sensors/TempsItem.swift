@@ -32,7 +32,8 @@ import SwiftUI
 
     /// Fan speeds only matter with the panel open, so they're read here rather than on the menu bar tick.
     func refreshPanel() {
-        fans = readFans()
+        let fans = ctx.settings.isSectionShown(.tempsFans) ? readFans() : []
+        if self.fans != fans { self.fans = fans }
     }
 
     var labelValue: String {

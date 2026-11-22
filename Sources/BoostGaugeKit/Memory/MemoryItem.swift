@@ -21,6 +21,7 @@ struct AppMemoryRow: Identifiable {
 @MainActor public final class MemoryItem: BoostGaugeItem {
     public let id = ItemID.memory
     let model = MemoryModel()
+    private let settings: AppSettings
     private let read: () -> MemoryStats?
 
     public convenience init(_ ctx: AppContext) {
@@ -28,6 +29,7 @@ struct AppMemoryRow: Identifiable {
     }
 
     init(_ ctx: AppContext, read: @escaping () -> MemoryStats?) {
+        settings = ctx.settings
         self.read = read
     }
 
@@ -37,7 +39,7 @@ struct AppMemoryRow: Identifiable {
     }
 
     public var panel: AnyView {
-        AnyView(MemoryPanel(model: model).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshPanel() })
+        AnyView(MemoryPanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshPanel() })
     }
 
     public func tick(now: Date) {
@@ -58,6 +60,11 @@ struct AppMemoryRow: Identifiable {
         model.stats = read()
         model.pressure = MemoryPressure.read()
         model.swapBytes = MemoryStats.swapUsedBytes()
+        // The per-app rollup walks every process; skip it while the rows are hidden.
+        guard settings.isSectionShown(.memoryTopApps) else {
+            if model.topApps != nil { model.topApps = nil }
+            return
+        }
         let top = await Task.detached(priority: .utility) { MemoryTop.sample(n: 3) }.value
         guard !Task.isCancelled else { return }
         model.topApps = top.map { row in

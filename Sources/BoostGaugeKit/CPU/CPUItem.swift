@@ -87,7 +87,7 @@ enum CPUCores {
     }
 
     public var panel: AnyView {
-        AnyView(CPUPanel(model: model).refreshing(every: .seconds(3)) { [weak self] in
+        AnyView(CPUPanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in
             self?.refreshDetails()
             await self?.refreshTop()
         })
@@ -95,6 +95,7 @@ enum CPUCores {
 
     /// Temperatures are read only while the panel is open, like the GPU panel's.
     func refreshDetails() {
+        guard settings.isSectionShown(.cpuDetails) else { return }
         // Observable notifies on every write, equal or not; skip no-op writes so the panel doesn't redraw.
         if model.temperatureUnit != settings.temperatureUnit { model.temperatureUnit = settings.temperatureUnit }
         let summary = readTemperatures()
@@ -137,7 +138,7 @@ enum CPUCores {
         return [
             RenderVariant("live", label: label, panel: panel),
             RenderVariant("sample", label: AnyView(StackedLabel(caption: "CPU", value: "23%", widest: "100%")),
-                          panel: AnyView(CPUPanel(model: Self.sampleModel()))),
+                          panel: AnyView(CPUPanel(model: Self.sampleModel(), settings: settings))),
             RenderVariant("low", label: AnyView(StackedLabel(caption: "CPU", value: "7%", widest: "100%")), panel: nil),
             RenderVariant("full", label: AnyView(StackedLabel(caption: "CPU", value: "100%", widest: "100%")), panel: nil),
         ]
@@ -182,6 +183,12 @@ enum CPUCores {
     }
 
     func refreshTop() async {
+        // Sampling every process is the panel's dearest read; skip it while nobody can see the rows.
+        guard settings.isSectionShown(.cpuTopProcesses) else {
+            processBaseline = nil
+            if model.topProcesses != nil { model.topProcesses = nil }
+            return
+        }
         let baseline: (snapshot: [ProcessCPUTime], at: ContinuousClock.Instant)
         if let processBaseline {
             baseline = processBaseline

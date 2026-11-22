@@ -39,7 +39,9 @@ import BoostGaugeKit
                 if let panel = variant.panel { await save(panel, "\(base)-panel", in: dir) }
             }
         }
-        await save(ctx.settingsView, "settings", in: dir)
+        for page in SettingsFeature.renderPages(ctx) {
+            await save(page.view, "settings-\(page.name)", in: dir)
+        }
         if let section = ctx.energyMode?.makeSection() {
             await save(section.padding().frame(width: 300), "energymode", in: dir)
         }
