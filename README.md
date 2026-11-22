@@ -2,6 +2,8 @@
 
 A SwiftUI menu bar system monitor for macOS 27 on Apple Silicon. Each stat (battery, CPU, GPU, memory, temps, network, disk, power) is its own menu bar item that you can show, hide and reorder. Click one to open a detail panel.
 
+**Download** the signed, notarised app from [Releases](../../releases).
+
 ## Build
 
 Needs Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
@@ -12,6 +14,8 @@ Needs Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install
    VITALS_BUNDLE_PREFIX = com.yourname
    ```
 2. Run `scripts/run.sh --install` to build and install to /Applications, or `scripts/test.sh` to run the tests.
+
+Maintainers: `scripts/release.sh 1.0.0` builds the notarised release zip. It needs a Developer ID Application certificate and a `notarytool` keychain profile (`xcrun notarytool store-credentials vitals-notary`).
 
 ## Energy Mode
 
