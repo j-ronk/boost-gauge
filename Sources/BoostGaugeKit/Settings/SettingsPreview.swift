@@ -40,7 +40,8 @@ private struct PreviewKey: Equatable {
     let windowOpen: Bool
 }
 
-/// Reports false when its window closes and true when it's back on screen.
+/// Reports whether its window can be seen: closed, minimised or fully covered stops the preview's sampling, so a
+/// Settings window nobody is looking at costs nothing.
 struct WindowOpenReader: NSViewRepresentable {
     let onChange: (Bool) -> Void
 
@@ -70,7 +71,8 @@ struct WindowOpenReader: NSViewRepresentable {
             observers.append(center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window,
                                                 queue: .main) { [weak self, weak window] _ in
                 MainActor.assumeIsolated {
-                    if window?.occlusionState.contains(.visible) == true { self?.onChange(true) }
+                    guard let window else { return }
+                    self?.onChange(window.occlusionState.contains(.visible))
                 }
             })
         }

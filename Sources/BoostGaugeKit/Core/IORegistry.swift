@@ -24,6 +24,22 @@ public enum IORegistry {
         return result
     }
 
+    public static func property(_ key: String, ofClass className: String) -> [Any] {
+        var iterator: io_iterator_t = IO_OBJECT_NULL
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(className), &iterator) == KERN_SUCCESS else {
+            return []
+        }
+        defer { IOObjectRelease(iterator) }
+        var result: [Any] = []
+        while case let service = IOIteratorNext(iterator), service != IO_OBJECT_NULL {
+            if let value = IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() {
+                result.append(value)
+            }
+            IOObjectRelease(service)
+        }
+        return result
+    }
+
     private static func properties(of service: io_service_t) -> [String: Any]? {
         var props: Unmanaged<CFMutableDictionary>?
         guard IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS else { return nil }

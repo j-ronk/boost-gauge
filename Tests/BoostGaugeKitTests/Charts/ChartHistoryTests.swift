@@ -80,7 +80,8 @@ struct SeriesHistoryTests {
         for m in 0..<1440 { s.record(m == 700 ? 100 : 10, at: t0.addingTimeInterval(Double(m * 60))) }
         let now = t0.addingTimeInterval(1439 * 60)
         let slice = s.slice(.day, now: now)
-        #expect(slice.points.count <= ChartLayout.columns)
+        // Columns sit on fixed multiples of their width, so the window can straddle one more.
+        #expect(slice.points.count <= ChartLayout.columns + 1)
         #expect(slice.points.count >= ChartLayout.columns - 2)
         #expect(slice.spacing == 360)
         #expect(slice.points.map(\.peak).max() == 100)
@@ -156,6 +157,34 @@ struct ChartHistoryTests {
         let day = restored(.cpu).points(.day, now: t0.addingTimeInterval(20))
         #expect(day.map(\.avg) == [20])
         #expect(day.map(\.peak) == [30])
+    }
+
+    /// Restored, then not run for hours: the minutes in between must read as a gap, not as the old day's slots.
+    @Test func restoreThenRecordHoursLaterClearsTheSkippedMinutes() {
+        let (h, _) = dayWithAGap()
+        let restored = ChartHistory()
+        restored.decode(try! h.encoded())
+        let later = t0.addingTimeInterval(180 * 60 + 23 * 3600)
+        restored.record(.cpu, 7, at: later)
+        let day = restored(.cpu).points(.day, now: later)
+        // 23 hours on, only the last hour of the saved readings (less the minute now 24 hours old) is in the day.
+        #expect(day.count == 60)
+        #expect(day.last?.avg == 7)
+        let saved = h(.cpu).points(.day, now: t0.addingTimeInterval(180 * 60)).suffix(59)
+        #expect(Array(day.prefix(59)) == Array(saved))
+    }
+
+    @Test func startingToSaveTwiceKeepsOneObserver() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("charts-24h.plist")
+        let h = ChartHistory()
+        h.startSaving(to: url)
+        h.startSaving(to: url)
+        h.record(.cpu, 1, at: t0)
+        h.save()
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(h.url == url)
     }
 
     @Test func unreadableOrOtherVersionStartsEmpty() throws {
@@ -324,6 +353,8 @@ struct ChartSamplesTests {
         let v = ChartSamples.make(now: now)(.cpu).points(.hour, now: now).map(\.avg).sorted()
         #expect(v[v.count / 2] < 30, "median is everyday use")
         #expect(v.last! > 40, "bursts")
+        let gpu = ChartSamples.make(now: now)(.gpu).points(.tenMinutes, now: now).map(\.avg).sorted()
+        #expect(gpu[gpu.count / 2] < 50, "the GPU is busy only at the end")
     }
 }
 

@@ -53,8 +53,9 @@ public enum DiskStats {
         return (read, write)
     }
 
+    /// Runs every menu bar beat for the chart, so it copies only each driver's Statistics, not all its properties.
     static func readTotals() -> (read: UInt64, write: UInt64) {
-        totals(IORegistry.allProperties(ofClass: "IOBlockStorageDriver"))
+        totals(IORegistry.property("Statistics", ofClass: "IOBlockStorageDriver").map { ["Statistics": $0] })
     }
 
     static func size(_ bytes: Int64) -> String {

@@ -63,6 +63,15 @@ struct DiskItemTests {
     }
 }
 
+struct DiskStatsReadTests {
+    @Test func readsThisMacsTotalsFromStatisticsAlone() {
+        let full = DiskStats.totals(IORegistry.allProperties(ofClass: "IOBlockStorageDriver"))
+        let lean = DiskStats.readTotals()
+        #expect(lean.read > 0)
+        #expect(lean.read >= full.read && lean.write >= full.write)
+    }
+}
+
 /// Capacity reads happen off the main actor, so the count needs a lock.
 final class Counter: @unchecked Sendable {
     private let lock = NSLock()

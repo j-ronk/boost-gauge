@@ -62,12 +62,12 @@ import SwiftUI
     public func renderVariants() async -> [RenderVariant] {
         var variants = [RenderVariant("live", label: label, panel: panel)]
         for sample in BatterySamples.all {
-            let m = PowerModel(snapshot: sample.snapshot, fans: BatterySamples.fans, charts: BatterySamples.powerHistory(sample.snapshot))
+            let m = PowerModel(snapshot: sample.snapshot, fans: BatterySamples.fans, charts: BatterySamples.powerHistory(sample.snapshot, now: ChartSamples.now))
             let panel = PowerPanel(model: m, settings: settings, charts: charts)
-            // One sample at every range; the rest at 10 Min.
+            // Every range for every state would triple the renders; one state shows the ranges.
             variants += sample.name == BatterySamples.all[0].name
                 ? RenderVariant.eachRange(sample.name, label: AnyView(PowerLabel(model: m)), panel: panel)
-                : [RenderVariant(sample.name, label: AnyView(PowerLabel(model: m)), panel: AnyView(panel.environment(\.chartRangeOverride, .tenMinutes)))]
+                : [RenderVariant(sample.name, label: AnyView(PowerLabel(model: m)), panel: AnyView(panel.chartRender(.tenMinutes)))]
         }
         return variants
     }

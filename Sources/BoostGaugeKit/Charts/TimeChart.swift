@@ -32,7 +32,7 @@ struct ChartLine {
         return runs
     }
 
-    /// The point nearest `t`, if one lies within `gap` of it.
+    /// Hover snaps to a real reading, but never across a gap: nothing was read there.
     func value(near t: TimeInterval, within gap: TimeInterval) -> ChartPoint? {
         let nearest = runs.lazy.flatMap { $0 }.min { abs($0.t - t) < abs($1.t - t) }
         guard let nearest, abs(nearest.t - t) <= gap else { return nil }
@@ -95,7 +95,9 @@ enum ChartTime {
         let (component, step): (Calendar.Component, Int) =
             span <= 900 ? (.minute, 3) : span <= 7200 ? (.minute, 15) : span <= 108_000 ? (.hour, 6) : (.day, 3)
         var dates: [Date] = []
-        var d = calendar.startOfDay(for: start)
+        // Minute labels sit on the hour's quarters, so start counting from the hour rather than walking from midnight.
+        var d = component == .minute ? calendar.dateInterval(of: .hour, for: start)?.start ?? start
+                                     : calendar.startOfDay(for: start)
         while d <= end {
             let f = d.timeIntervalSince(start) / span
             if f >= 0.05, f <= 0.95 { dates.append(d) }
@@ -178,7 +180,7 @@ struct TimeChart: View {
                      at: CGPoint(x: pw + 8, y: y(tick.value)), anchor: .leading)
         }
 
-        // The first series' fill sits under every line.
+        // Filled before any line is stroked, so the dashed and dotted lines stay visible on top of it.
         if let first = lines.first {
             for run in first.runs where run.count > 1 {
                 var area = Path()
@@ -301,6 +303,9 @@ struct ChartRangePicker: View {
 extension EnvironmentValues {
     /// Pins every chart below to one range, for `--render`; nil follows the shared setting.
     @Entry var chartRangeOverride: ChartRange?
+    /// Renders draw the sample day as of the moment it was made, so the line reaches the right edge however long
+    /// the render takes.
+    @Entry var chartNowOverride: Date?
 }
 
 /// One line of a panel chart: a recorded series, its live reading for the legend, and how to show both.
@@ -348,11 +353,11 @@ struct MetricChart: View {
     var accessibilityName: String
 
     @Environment(\.chartRangeOverride) private var rangeOverride
-    @State private var hover: TimeInterval?
+    @Environment(\.chartNowOverride) private var nowOverride
 
     var body: some View {
         let range = rangeOverride ?? settings.chartRange
-        let now = Date.now
+        let now = nowOverride ?? Date.now
         let end = now.timeIntervalSinceReferenceDate
         let refresh = Double(settings.refreshSeconds)
         var gaps: [TimeInterval] = []
@@ -373,21 +378,43 @@ struct MetricChart: View {
             ChartHeading(title: title) {
                 ChartRangePicker(selection: Binding(get: { range }, set: { settings.chartRange = $0 }))
             }
-            TimeChart(lines: lines, start: end - range.span, end: end, scale: scale.resolve(values),
-                      ticks: ChartTime.ticks(from: now.addingTimeInterval(-range.span), to: now),
-                      gap: gap, valueText: valueText, hover: $hover)
+            ChartPlot(lines: lines, start: end - range.span, end: end, scale: scale.resolve(values),
+                      ticks: ChartTime.ticks(from: now.addingTimeInterval(-range.span), to: now), gap: gap,
+                      sources: sources, valueText: valueText, accessibilityLabel: "\(accessibilityName), \(range.title)")
+        }
+    }
+}
+
+/// The plot and its legend. Hover lives here so a pointer move redraws these alone, not the slicing and thinning
+/// in `MetricChart`.
+private struct ChartPlot: View {
+    let lines: [ChartLine]
+    let start: TimeInterval
+    let end: TimeInterval
+    let scale: ChartScale
+    let ticks: [ChartTime.Tick]
+    let gap: TimeInterval
+    let sources: [ChartSource]
+    let valueText: (Double) -> String
+    let accessibilityLabel: String
+    @State private var hover: TimeInterval?
+
+    var body: some View {
+        let entries = legendEntries()
+        VStack(alignment: .leading, spacing: 6) {
+            TimeChart(lines: lines, start: start, end: end, scale: scale, ticks: ticks, gap: gap,
+                      valueText: valueText, hover: $hover)
                 .accessibilityElement()
-                .accessibilityLabel("\(accessibilityName), \(range.title)")
-                .accessibilityValue(legendEntries(lines: lines, gap: gap).map { "\($0.name) \($0.value)" }
-                    .joined(separator: ", "))
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(entries.map { "\($0.name) \($0.value)" }.joined(separator: ", "))
             if sources.count > 1 {
-                ChartLegend(entries: legendEntries(lines: lines, gap: gap))
+                ChartLegend(entries: entries)
             }
         }
     }
 
     /// Live readings, or the hovered moment's while the pointer is over the chart.
-    private func legendEntries(lines: [ChartLine], gap: TimeInterval) -> [ChartLegend.Entry] {
+    private func legendEntries() -> [ChartLegend.Entry] {
         sources.indices.map { k in
             let value: Double?
             if let hover {

@@ -3,17 +3,20 @@ import SwiftUI
 /// A seeded day of every series for `--render`, ending on the README's sample figures. The app wasn't running
 /// for two hours overnight, so 24 Hours shows a gap.
 @MainActor enum ChartSamples {
-    static let history: ChartHistory = make(now: .now)
+    static let now = Date.now
+    static let history: ChartHistory = make(now: now)
 
     static func make(now: Date) -> ChartHistory {
         let h = ChartHistory()
         func fill(_ id: ChartSeriesID, _ seed: UInt64, _ base: Double, _ amp: Double, _ end: Double,
-                  _ range: ClosedRange<Double> = 0...100, spikes: Double = 0.004, night: Double = 0.6) {
+                  _ range: ClosedRange<Double> = 0...100, spikes: Double = 0.004, night: Double = 0.6,
+                  drift: TimeInterval = 3600) {
             Self.fill(h, id, seed: seed, base: base, amp: amp, end: end, range: range, spikes: spikes, night: night,
-                      until: now)
+                      drift: drift, until: now)
         }
         fill(.cpu, 1, 20, 10, 23)
-        fill(.gpu, 2, 30, 25, 100)
+        // Busy only for the last half minute, so 10 Min shows everyday use before the render's 100%.
+        fill(.gpu, 2, 30, 25, 100, drift: 0)
         fill(.memoryUsed, 3, 47, 2, 49, spikes: 0, night: 0.95)
         fill(.memoryPressure, 4, 16, 3, 18, spikes: 0, night: 0.9)
         fill(.networkDown, 5, 300_000, 400_000, 15_000, 0...25_000_000, spikes: 0.01)
@@ -31,7 +34,8 @@ import SwiftUI
     /// A smoothed random walk with short bursts, scaled down to `night` at 4 am, ending on `end`: readings
     /// every 2 s for the last hour and every 10 s before, none from 9 to 7 hours ago.
     static func fill(_ h: ChartHistory, _ id: ChartSeriesID, seed: UInt64, base: Double, amp: Double, end: Double,
-                     range: ClosedRange<Double>, spikes: Double = 0.004, night: Double = 0.6, until now: Date) {
+                     range: ClosedRange<Double>, spikes: Double = 0.004, night: Double = 0.6,
+                     drift: TimeInterval = 3600, until now: Date) {
         var rng = SampleRandom(seed: seed)
         let series = h(id)
         var v = base
@@ -45,8 +49,8 @@ import SwiftUI
             let hour = Double(clock.hour ?? 12) + Double(clock.minute ?? 0) / 60
             // Busiest mid-afternoon, quietest at 4 am, with no step anywhere.
             var target = base * (night + (1 - night) * (0.5 - 0.5 * cos(2 * .pi * (hour - 4) / 24)))
-            // The last hour drifts onto the live figure, so 24 Hours ends where the panel's header does.
-            if t > -3600 { target += (end - target) * (1 + t / 3600) }
+            // The last `drift` seconds head for the live figure, so 24 Hours ends where the panel's header does.
+            if drift > 0, t > -drift { target += (end - target) * (1 + t / drift) }
             v = v * 0.8 + (target + rng.uniform(-1...1) * amp) * 0.2
             if burst == 0, rng.uniform(0...1) < spikes * step / 2 { burst = Int(rng.uniform(4...20) * 2 / step) + 1 }
             var x = v
@@ -63,7 +67,14 @@ extension RenderVariant {
     @MainActor static func eachRange(_ name: String, label: AnyView, panel: some View) -> [RenderVariant] {
         ChartRange.allCases.map { range in
             RenderVariant(range == .tenMinutes ? name : "\(name)-\(range.rawValue)", label: label,
-                          panel: AnyView(panel.environment(\.chartRangeOverride, range)))
+                          panel: AnyView(panel.chartRender(range)))
         }
+    }
+}
+
+extension View {
+    /// A render's chart: pinned to `range` and to the sample clock.
+    @MainActor func chartRender(_ range: ChartRange) -> some View {
+        environment(\.chartRangeOverride, range).environment(\.chartNowOverride, ChartSamples.now)
     }
 }

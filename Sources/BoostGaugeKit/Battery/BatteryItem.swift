@@ -297,16 +297,16 @@ struct EnergyUser: Identifiable {
             let m = BatterySamples.model(sample)
             let label = AnyView(BatteryLabel(model: m, settings: ctx.settings))
             let panel = BatteryPanel(model: m, ctx: ctx)
-            // One sample at every range; the rest at 10 Min.
+            // Every range for every state would triple the renders; one state shows the ranges.
             variants += sample.name == BatterySamples.all[0].name
                 ? RenderVariant.eachRange(sample.name, label: label, panel: panel)
-                : [RenderVariant(sample.name, label: label, panel: AnyView(panel.environment(\.chartRangeOverride, .tenMinutes)))]
+                : [RenderVariant(sample.name, label: label, panel: AnyView(panel.chartRender(.tenMinutes)))]
         }
         // Charge's own range, which the shared one doesn't move.
         let tenDays = BatterySamples.model(BatterySamples.all[0])
         tenDays.historyRange = .tenDays
         variants.append(RenderVariant("\(BatterySamples.all[0].name)-10d", label: AnyView(BatteryLabel(model: tenDays, settings: ctx.settings)),
-                                      panel: AnyView(BatteryPanel(model: tenDays, ctx: ctx).environment(\.chartRangeOverride, .tenMinutes))))
+                                      panel: AnyView(BatteryPanel(model: tenDays, ctx: ctx).chartRender(.tenMinutes))))
         variants.append(RenderVariant("levels", label: AnyView(BatterySamples.LevelStrip()), panel: nil))
         variants.append(RenderVariant("levels-no-percent", label: AnyView(BatterySamples.LevelStrip(showPercentage: false)), panel: nil))
         variants.append(RenderVariant("levels-low-power", label: AnyView(BatterySamples.LevelStrip(lowPower: true)), panel: nil))

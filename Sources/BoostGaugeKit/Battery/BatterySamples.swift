@@ -100,7 +100,7 @@ import SwiftUI
         m.users = users
         m.usersLoaded = true
         m.fans = fans
-        m.powerCharts = powerHistory(sample.snapshot)
+        m.powerCharts = powerHistory(sample.snapshot, now: ChartSamples.now)
         return m
     }
 

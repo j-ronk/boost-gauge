@@ -69,7 +69,7 @@ struct HistoryTier: Equatable {
     let capacity: Int
     private(set) var avg: [Float]
     private(set) var peak: [Float]
-    /// The newest bucket written.
+    /// Slots up to `capacity` buckets behind this are the window; anything older in the ring is stale.
     private(set) var head: Int?
     private var sum = 0.0
     private var count = 0
@@ -96,6 +96,8 @@ struct HistoryTier: Equatable {
         if let h = head {
             if b < h {
                 // A small step back (clock nudged) is dropped; a big one would leave the ring unreadable, so restart.
+                // "Small" is per tier, so after a step back of an hour the finer tiers restart while the day carries
+                // on, and for that hour they disagree.
                 if h - b < capacity { return }
                 self = HistoryTier(bucket: bucket, capacity: capacity)
                 head = b
@@ -118,7 +120,8 @@ struct HistoryTier: Equatable {
         peak[i] = peak[i].isNaN ? value : max(peak[i], value)
     }
 
-    /// Recorded buckets from `start` to `end`, oldest first, each at its bucket's midpoint.
+    /// Recorded buckets from `start` to `end`, oldest first. Midpoints, so a minute's average doesn't draw a minute
+    /// early.
     func points(from start: TimeInterval, to end: TimeInterval) -> [ChartPoint] {
         guard let head else { return [] }
         let first = max(head - capacity + 1, bucketNumber(start))
@@ -193,15 +196,17 @@ struct HistoryTier: Equatable {
                                  columns: Int) -> [ChartPoint] {
         guard points.count > 2 * columns, end > start, columns > 0 else { return points }
         let width = (end - start) / Double(columns)
+        // Columns sit on fixed multiples of their width, not on `start`, which moves every tick and would re-bucket
+        // the averages each time, making the line wobble.
         var out: [ChartPoint] = []
         out.reserveCapacity(columns)
-        var column = -1, sumT = 0.0, sumAvg = 0.0, n = 0, peak = -Float.infinity
+        var column = Int.min, sumT = 0.0, sumAvg = 0.0, n = 0, peak = -Float.infinity
         func flush() {
             guard n > 0 else { return }
             out.append(ChartPoint(t: sumT / Double(n), avg: Float(sumAvg / Double(n)), peak: peak))
         }
         for p in points {
-            let c = min(columns - 1, max(0, Int((p.t - start) / width)))
+            let c = Int((p.t / width).rounded(.down))
             if c != column {
                 flush()
                 column = c
@@ -278,7 +283,8 @@ struct HistoryTier: Equatable {
         guard let saved = try? PropertyListDecoder().decode(Saved.self, from: data), saved.version == 1,
               saved.bucket == SeriesHistory.tierShapes[Self.dayTier].bucket else { return }
         for (raw, tier) in saved.series {
-            guard let id = ChartSeriesID(rawValue: raw) else { continue }
+            // A damaged head near Int's limits would overflow the ring's arithmetic; real ones are tens of millions.
+            guard let id = ChartSeriesID(rawValue: raw), abs(tier.head) < 1 << 40 else { continue }
             let s = self(id)
             s.restoreDay(head: tier.head, avg: Self.floats(tier.avg), peak: Self.floats(tier.peak))
         }
@@ -311,6 +317,7 @@ struct HistoryTier: Equatable {
         timer.tolerance = 60
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+        if let sleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver) }
         sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { [weak self] in self?.save() }
