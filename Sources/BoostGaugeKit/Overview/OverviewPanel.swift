@@ -1,17 +1,56 @@
 import AppKit
 import SwiftUI
 
-/// The live panel: whichever style Settings picks, in the user's order. Cmd-drag reorders it.
+/// The live panel: whichever style Settings picks, in the user's order. Cmd-drag reorders it; a click on a row,
+/// tile or heading swaps in that item's own panel, and back returns.
 struct OverviewLivePanel: View {
     let model: OverviewModel
     let settings: AppSettings
+    private weak var host: OverviewHost?
+    @State private var nav: OverviewNavigator
+
+    init(model: OverviewModel, settings: AppSettings, host: OverviewHost?) {
+        self.model = model
+        self.settings = settings
+        self.host = host
+        _nav = State(initialValue: OverviewNavigator(host: host))
+    }
 
     var body: some View {
         let style = settings.overviewStyle
-        OverviewPanel(model: model, style: style, metrics: settings.overviewMetrics(for: style),
-                      showsTopProcesses: settings.isSectionShown(.cpuTopProcesses),
-                      reorder: { settings.moveOverviewMetric($0, onto: $1) })
+        ZStack(alignment: .topLeading) {
+            if let id = nav.shown, let panel = host?.panel(for: id) {
+                OverviewDetail(id: id, panel: panel, back: back)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
+            } else {
+                OverviewPanel(model: model, style: style, metrics: settings.overviewMetrics(for: style),
+                              showsTopProcesses: settings.isSectionShown(.cpuTopProcesses),
+                              reorder: { settings.moveOverviewMetric($0, onto: $1) },
+                              links: OverviewLinks(host: host, drill: { id in withAnimation(Self.push) { nav.open(id) } }))
+                    .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
+            }
+        }
+        .clipped()
+        .onKeyPress(.escape) {
+            guard nav.shown != nil else { return .ignored }
+            back()
+            return .handled
+        }
+        // Closing the popover returns it to the Overview, and stops the item panel's sampling with it.
+        .onDisappear { nav.back() }
     }
+
+    private static let push = Animation.smooth(duration: 0.3)
+
+    private func back() {
+        withAnimation(Self.push) { nav.back() }
+    }
+}
+
+/// The live panel's hooks into its item. Renders have none, and draw a fixed panel.
+struct OverviewLinks {
+    weak var host: OverviewHost?
+    let drill: (ItemID) -> Void
 }
 
 /// The condensed panel in one of three styles: Bars, an expandable List, or Tiles.
@@ -22,33 +61,157 @@ struct OverviewPanel: View {
     var showsTopProcesses = true
     /// Nil leaves the panel fixed, as in renders.
     var reorder: ((OverviewMetric, OverviewMetric) -> Void)?
+    let links: OverviewLinks?
     @State private var tracker = ReorderTracker()
+    @State private var highlight: RowHighlight
+    @FocusState private var focused: Bool
 
     init(model: OverviewModel, style: OverviewStyle, metrics: [OverviewMetric]? = nil, showsTopProcesses: Bool = true,
-         reorder: ((OverviewMetric, OverviewMetric) -> Void)? = nil) {
+         reorder: ((OverviewMetric, OverviewMetric) -> Void)? = nil, links: OverviewLinks? = nil,
+         highlighted: OverviewRow? = nil) {
         self.model = model
         self.style = style
         self.metrics = metrics ?? style.metrics
         self.showsTopProcesses = showsTopProcesses
         self.reorder = reorder
+        self.links = links
+        _highlight = State(initialValue: RowHighlight(highlighted))
     }
 
     var body: some View {
         let r = model.reading
-        let drag = ReorderContext(tracker: tracker, reorder: reorder)
+        let rows = RowContext(tracker: tracker, reorder: reorder, highlight: highlight, links: links, reading: r)
         PanelChrome(footer: .activityMonitor) {
             switch style {
             case .bars:
                 PanelHeader(title: "Overview", subtitle: OverviewText.batteryStatus(r.battery), bigValue: nil)
-                OverviewBars(r: r, metrics: metrics, drag: drag)
+                OverviewBars(r: r, metrics: metrics, rows: rows)
             case .list:
-                OverviewList(model: model, metrics: metrics, showsTopProcesses: showsTopProcesses, drag: drag)
+                OverviewList(model: model, metrics: metrics, showsTopProcesses: showsTopProcesses, rows: rows)
             case .tiles:
                 PanelHeader(title: "Overview", subtitle: OverviewText.batteryStatus(r.battery), bigValue: nil)
-                OverviewTiles(r: r, metrics: metrics, drag: drag)
+                OverviewTiles(r: r, metrics: metrics, rows: rows)
             }
         }
         .coordinateSpace(.named(ReorderTracker.space))
+        .modifier(RowKeys(enabled: links != nil, metrics: metrics, highlight: highlight, focused: $focused) {
+            links?.drill($0.item)
+        })
+    }
+}
+
+// MARK: - Drill-in rows
+
+/// A row, tile or heading that can be highlighted and clicked through.
+enum OverviewRow: Hashable {
+    case metric(OverviewMetric)
+    case heading(OverviewMetric.Group)
+}
+
+/// The row under the pointer, or the one the arrow keys moved to; whichever came last.
+@MainActor @Observable final class RowHighlight {
+    var row: OverviewRow?
+
+    init(_ row: OverviewRow? = nil) { self.row = row }
+
+    func hover(_ row: OverviewRow, _ inside: Bool) {
+        if inside { self.row = row } else if self.row == row { self.row = nil }
+    }
+
+    /// The next metric down (or up) from the highlighted one, in the panel's order. From nothing, the first or last.
+    func step(_ by: Int, in metrics: [OverviewMetric]) {
+        guard !metrics.isEmpty else { return }
+        if case let .metric(current) = row, let i = metrics.firstIndex(of: current) {
+            row = .metric(metrics[min(metrics.count - 1, max(0, i + by))])
+        } else {
+            row = .metric(by > 0 ? metrics[0] : metrics[metrics.count - 1])
+        }
+    }
+
+    var metric: OverviewMetric? {
+        if case let .metric(m) = row { m } else { nil }
+    }
+}
+
+/// Arrow keys move the highlight; Return opens it.
+private struct RowKeys: ViewModifier {
+    let enabled: Bool
+    let metrics: [OverviewMetric]
+    let highlight: RowHighlight
+    var focused: FocusState<Bool>.Binding
+    let open: (OverviewMetric) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .focusable()
+                .focused(focused)
+                .focusEffectDisabled()
+                .onAppear { focused.wrappedValue = true }
+                .onKeyPress(keys: [.downArrow, .rightArrow]) { _ in highlight.step(1, in: metrics); return .handled }
+                .onKeyPress(keys: [.upArrow, .leftArrow]) { _ in highlight.step(-1, in: metrics); return .handled }
+                .onKeyPress(.return) {
+                    guard let metric = highlight.metric else { return .ignored }
+                    open(metric)
+                    return .handled
+                }
+        } else {
+            content
+        }
+    }
+}
+
+struct RowContext {
+    let tracker: ReorderTracker
+    let reorder: ((OverviewMetric, OverviewMetric) -> Void)?
+    let highlight: RowHighlight
+    let links: OverviewLinks?
+    let reading: OverviewReading
+}
+
+private struct Drillable: ViewModifier {
+    let row: OverviewRow
+    let target: ItemID
+    let value: String?
+    let rows: RowContext
+    var radius: CGFloat = 6
+    var inset = EdgeInsets(top: -3, leading: -6, bottom: -3, trailing: -6)
+
+    func body(content: Content) -> some View {
+        let lit = rows.highlight.row == row
+        let background = RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(.primary.opacity(lit ? 0.08 : 0))
+            .padding(inset)
+        if let links = rows.links {
+            Button {
+                guard rows.tracker.allowsDrill(commandDown: NSEvent.modifierFlags.contains(.command)) else { return }
+                links.drill(target)
+            } label: {
+                content.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(background)
+            .onHover { rows.highlight.hover(row, $0) }
+            .pointerStyle(.link)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(OverviewDrillText.accessibilityLabel(target))
+            .accessibilityValue(value ?? "")
+            .accessibilityAddTraits(.isButton)
+        } else {
+            // Renders show a highlight to check it, with no button.
+            content.background(background)
+        }
+    }
+}
+
+private extension View {
+    func drillable(_ metric: OverviewMetric, _ rows: RowContext) -> some View {
+        modifier(Drillable(row: .metric(metric), target: metric.item, value: OverviewText.rowValue(metric, rows.reading), rows: rows))
+    }
+
+    func drillableTile(_ metric: OverviewMetric, _ rows: RowContext) -> some View {
+        modifier(Drillable(row: .metric(metric), target: metric.item, value: OverviewText.rowValue(metric, rows.reading),
+                           rows: rows, radius: 10, inset: EdgeInsets()))
     }
 }
 
@@ -60,7 +223,7 @@ struct OverviewPanel: View {
     nonisolated static let space = "overview.reorder"
     private(set) var dragging: OverviewMetric?
     @ObservationIgnored var frames: [OverviewMetric: CGRect] = [:]
-    /// Set for the rest of a reorder drag so the List row it ends on doesn't also open or close.
+    /// Set for the rest of a reorder drag so the row it ends on doesn't also open, close or drill in.
     @ObservationIgnored private(set) var suppressesTap = false
     @ObservationIgnored private var refused = false
 
@@ -84,23 +247,23 @@ struct OverviewPanel: View {
         DispatchQueue.main.async { self.suppressesTap = false }
     }
 
+    /// A click opens the item, unless it ends a reorder drag or Command is held: a short Cmd-drag is a Cmd-click.
+    func allowsDrill(commandDown: Bool) -> Bool {
+        !commandDown && !suppressesTap && dragging == nil
+    }
+
     static func target(at location: CGPoint, in frames: [OverviewMetric: CGRect], excluding dragged: OverviewMetric) -> OverviewMetric? {
         frames.first { $0.key != dragged && $0.value.contains(location) }?.key
     }
 }
 
-struct ReorderContext {
-    let tracker: ReorderTracker
-    let reorder: ((OverviewMetric, OverviewMetric) -> Void)?
-}
-
 private struct Reorderable: ViewModifier {
     let metric: OverviewMetric
-    let drag: ReorderContext
+    let rows: RowContext
 
     func body(content: Content) -> some View {
-        if let reorder = drag.reorder {
-            let tracker = drag.tracker
+        if let reorder = rows.reorder {
+            let tracker = rows.tracker
             content
                 .background {
                     if tracker.dragging == metric {
@@ -127,8 +290,8 @@ private struct Reorderable: ViewModifier {
 }
 
 private extension View {
-    func reorderable(_ metric: OverviewMetric, _ drag: ReorderContext) -> some View {
-        modifier(Reorderable(metric: metric, drag: drag))
+    func reorderable(_ metric: OverviewMetric, _ rows: RowContext) -> some View {
+        modifier(Reorderable(metric: metric, rows: rows))
     }
 }
 
@@ -139,7 +302,7 @@ private extension View {
 private struct OverviewBars: View {
     let r: OverviewReading
     let metrics: [OverviewMetric]
-    let drag: ReorderContext
+    let rows: RowContext
 
     private enum Line: Hashable {
         case heading(OverviewMetric.Group)
@@ -180,14 +343,20 @@ private struct OverviewBars: View {
     @ViewBuilder private func line(_ line: Line, grouped: Bool) -> some View {
         switch line {
         case let .heading(group):
-            Text(Self.heading(group))
+            let text = Text(Self.heading(group))
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let item = group.item {
+                text.modifier(Drillable(row: .heading(group), target: item, value: nil, rows: rows))
+            } else {
+                text
+            }
         case .divider:
             Divider()
         case let .row(metric):
-            row(metric, grouped: grouped).reorderable(metric, drag)
+            row(metric, grouped: grouped).drillable(metric, rows).reorderable(metric, rows)
         }
     }
 
@@ -288,7 +457,7 @@ private struct OverviewList: View {
     let model: OverviewModel
     let metrics: [OverviewMetric]
     let showsTopProcesses: Bool
-    let drag: ReorderContext
+    let rows: RowContext
 
     var body: some View {
         let r = model.reading
@@ -296,31 +465,21 @@ private struct OverviewList: View {
             ForEach(metrics, id: \.self) { metric in
                 let open = model.expanded.contains(metric)
                 VStack(alignment: .leading, spacing: 6) {
-                    Button {
-                        guard !drag.tracker.suppressesTap else { return }
-                        withAnimation(.snappy) { model.toggle(metric) }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: open ? "chevron.down" : "chevron.right")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 12)
-                            Text(metric.title(in: .list)).lineLimit(1)
-                            Spacer(minLength: 0)
-                            Sparkline(values: model.sparks[metric] ?? [])
-                                .frame(width: 48, height: 14)
-                            Text(OverviewText.rowValue(metric, r))
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                                .lineLimit(1)
-                                .frame(width: 64, alignment: .trailing)
-                        }
-                        .contentShape(Rectangle())
+                    HStack(spacing: 6) {
+                        Text(metric.title(in: .list)).lineLimit(1)
+                        Spacer(minLength: 0)
+                        Sparkline(values: model.sparks[metric] ?? [])
+                            .frame(width: 48, height: 14)
+                        Text(OverviewText.rowValue(metric, r))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .frame(width: 64, alignment: .trailing)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(metric.title(in: .list))
-                    .accessibilityValue(OverviewText.rowValue(metric, r))
-                    .accessibilityHint(open ? "Collapse" : "Expand")
+                    .padding(.leading, 18)
+                    .drillable(metric, rows)
+                    // Over the row's leading edge, so the chevron opens and closes the row while the rest drills in.
+                    .overlay(alignment: .leading) { disclosure(metric, open: open) }
                     if open {
                         VStack(alignment: .leading, spacing: 6) { detail(metric, r) }
                             .padding(.leading, 18)
@@ -328,9 +487,27 @@ private struct OverviewList: View {
                             .padding(.bottom, 4)
                     }
                 }
-                .reorderable(metric, drag)
+                .reorderable(metric, rows)
             }
         }
+    }
+
+    private func disclosure(_ metric: OverviewMetric, open: Bool) -> some View {
+        Button {
+            guard !rows.tracker.suppressesTap else { return }
+            withAnimation(.snappy) { model.toggle(metric) }
+        } label: {
+            Image(systemName: open ? "chevron.down" : "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .offset(x: -2)
+        .accessibilityLabel(metric.title(in: .list))
+        .accessibilityValue(open ? "Expanded" : "Collapsed")
+        .accessibilityHint(open ? "Collapse" : "Expand")
     }
 
     @ViewBuilder private func detail(_ metric: OverviewMetric, _ r: OverviewReading) -> some View {
@@ -340,11 +517,14 @@ private struct OverviewList: View {
             CoresChart(cores: model.cores, height: 48, showsLegend: false)
             StatRow("Temperature", OverviewText.temperature(r.temps.cpu, unit))
             if showsTopProcesses {
-                if let rows = model.topProcesses {
-                    ForEach(rows.prefix(2)) { IconRow(icon: $0.icon, name: $0.name, value: Format.percent($0.percent)) }
-                } else {
-                    Text("Loading…").foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: 6) {
+                    if let processes = model.topProcesses {
+                        ForEach(processes.prefix(2)) { IconRow(icon: $0.icon, name: $0.name, value: Format.percent($0.percent)) }
+                    } else {
+                        Text("Loading…").foregroundStyle(.tertiary)
+                    }
                 }
+                .modifier(SamplesProcesses(host: rows.links?.host))
             }
         case .gpu:
             StatRow("Temperature", OverviewText.temperature(r.temps.gpu, unit))
@@ -394,13 +574,14 @@ struct Sparkline: View {
 private struct OverviewTiles: View {
     let r: OverviewReading
     let metrics: [OverviewMetric]
-    let drag: ReorderContext
+    let rows: RowContext
 
     var body: some View {
         TileFlow(spacing: 8) {
             ForEach(metrics, id: \.self) { metric in
                 tile(metric)
-                    .reorderable(metric, drag)
+                    .drillableTile(metric, rows)
+                    .reorderable(metric, rows)
                     .layoutValue(key: WideTile.self, value: metric == .network)
             }
         }
@@ -526,5 +707,22 @@ private struct Tile: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.primary.opacity(scheme == .dark ? 0.06 : 0.05)))
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The open CPU row's processes sample only while they're on screen: not in another style, a closed row, or behind
+/// a drilled-in panel.
+private struct SamplesProcesses: ViewModifier {
+    weak var host: OverviewHost?
+
+    func body(content: Content) -> some View {
+        if let host {
+            content
+                .onAppear { host.processesShown(true) }
+                .onDisappear { host.processesShown(false) }
+                .refreshing(every: .seconds(3)) { await host.sampleProcesses() }
+        } else {
+            content
+        }
     }
 }

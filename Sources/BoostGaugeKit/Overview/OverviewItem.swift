@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// One menu bar item for the whole Mac: a mini-bars glyph (one live bar per chosen stat) that opens a condensed panel of every
 /// other item's headline figures. It reads nothing itself; the figures are the other items' own models.
-@MainActor public final class OverviewItem: BoostGaugeItem {
+@MainActor public final class OverviewItem: BoostGaugeItem, OverviewHost {
     public let id = ItemID.overview
     let model = OverviewModel()
 
@@ -22,6 +22,9 @@ import UniformTypeIdentifiers
     private var panelOpen = false
     private var battery: BatterySnapshot?
     private var watcher: ShownWatcher?
+    /// Items whose panel stands in for the Overview's, counted per open panel.
+    private var details: [ItemID: Int] = [:]
+    private var processesShown = 0
 
     public convenience init(_ ctx: AppContext) {
         self.init(ctx, readBattery: { BatteryReader.read(fresh: $0) })
@@ -40,24 +43,28 @@ import UniformTypeIdentifiers
     private var glyphSources: [ItemID] { Self.sources(for: settings.overviewGlyphMetrics) }
 
     public var panel: AnyView {
-        AnyView(OverviewLivePanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in
-            await self?.refreshPanel()
-        })
+        AnyView(OverviewLivePanel(model: model, settings: settings, host: self))
+    }
+
+    /// What `tick` feeds: the glyph's sources always; the panel's figures and any drilled-in item while it's open.
+    private var fedSources: [ItemID] {
+        var ids = glyphSources
+        if panelOpen { ids += Self.panelSources }
+        ids += ItemID.allCases.filter { details[$0, default: 0] > 0 }
+        var seen = Set<ItemID>()
+        return ids.filter { seen.insert($0).inserted }
     }
 
     /// The scheduler ticks items in registration order and Overview registers last, so the sources in the menu bar
     /// have already ticked this beat. The rest are ticked here; a source out of the menu bar otherwise never updates.
     public func tick(now: Date) {
-        let glyph = glyphSources
-        feed(glyph + (panelOpen ? Self.panelSources.filter { !glyph.contains($0) } : []), now: now)
+        feed(fedSources, now: now)
         collect(now: now)
         model.recordSparks(OverviewStyle.list.metrics.filter(isFresh))
     }
 
     public func panelDidOpen() {
         panelOpen = true
-        // CPU's process baseline belongs to whichever panel shows the rows; start it fresh, as the CPU panel does.
-        if let cpu = ctx.scheduler.item(.cpu) { ctx.panels.opened(cpu) }
         // The glyph's sources ticked moments ago; a second tick now would measure a sliver of a second.
         let glyph = glyphSources
         feed(Self.panelSources.filter { !glyph.contains($0) }, now: .now)
@@ -67,18 +74,47 @@ import UniformTypeIdentifiers
     public func panelDidClose() {
         panelOpen = false
         model.topProcesses = nil
-        if let cpu = ctx.scheduler.item(.cpu) { ctx.panels.closed(cpu) }
     }
 
-    /// Every three seconds while the panel is open. Only the List style's open CPU row has rows to sample.
-    func refreshPanel() async {
-        guard settings.overviewStyle == .list, model.expanded.contains(.cpu),
-              let cpu = ctx.scheduler.item(.cpu) as? CPUItem else {
-            if model.topProcesses != nil { model.topProcesses = nil }
-            return
+    func panel(for id: ItemID) -> AnyView? {
+        id == .overview ? nil : ctx.scheduler.item(id)?.panel
+    }
+
+    /// The item's panel is on screen in Overview's place: it hears panelDidOpen as if opened from its own slot, and
+    /// Overview ticks it while it's out of the menu bar.
+    func detailOpened(_ id: ItemID) {
+        guard let item = ctx.scheduler.item(id) else { return }
+        // Read now, rather than a beat later, unless it was ticked this beat. Delta readers would measure a sliver.
+        let fed = fedSources
+        details[id, default: 0] += 1
+        if !fed.contains(id) && !settings.isShown(id) { item.tick(now: .now) }
+        ctx.panels.opened(item)
+    }
+
+    func detailClosed(_ id: ItemID) {
+        guard let count = details[id], count > 0, let item = ctx.scheduler.item(id) else { return }
+        details[id] = count == 1 ? nil : count - 1
+        ctx.panels.closed(item)
+    }
+
+    /// CPU's process baseline belongs to whichever panel shows the rows; start it fresh, as the CPU panel does.
+    func processesShown(_ shown: Bool) {
+        guard let cpu = ctx.scheduler.item(.cpu) else { return }
+        if shown {
+            processesShown += 1
+            ctx.panels.opened(cpu)
+        } else if processesShown > 0 {
+            processesShown -= 1
+            ctx.panels.closed(cpu)
+            if processesShown == 0 { model.topProcesses = nil }
         }
+    }
+
+    /// Every three seconds while the List's open CPU row shows its processes.
+    func sampleProcesses() async {
+        guard processesShown > 0, let cpu = ctx.scheduler.item(.cpu) as? CPUItem else { return }
         await cpu.refreshTop()
-        guard !Task.isCancelled, panelOpen else { return }
+        guard !Task.isCancelled, processesShown > 0 else { return }
         model.topProcesses = cpu.model.topProcesses
     }
 
@@ -125,7 +161,7 @@ import UniformTypeIdentifiers
         if let cores = (ctx.scheduler.item(.cpu) as? CPUItem)?.model.cores { model.cores = cores }
         let sample = Self.sampleModel()
         let sampleLabel = AnyView(OverviewLabel(model: sample, metrics: OverviewMetric.defaultGlyph))
-        var variants = [RenderVariant("live", label: label, panel: AnyView(OverviewLivePanel(model: model, settings: settings)))]
+        var variants = [RenderVariant("live", label: label, panel: AnyView(OverviewLivePanel(model: model, settings: settings, host: nil)))]
         for style in OverviewStyle.allCases {
             variants.append(RenderVariant("sample-\(style.rawValue)", label: sampleLabel,
                                           panel: AnyView(OverviewPanel(model: sample, style: style))))
@@ -137,8 +173,26 @@ import UniformTypeIdentifiers
         let tilesOrder: [OverviewMetric] = [.cpu, .gpu, .network, .memory, .hottest, .battery]
         variants.append(RenderVariant("sample-tiles-reordered", label: sampleLabel,
                                       panel: AnyView(OverviewPanel(model: sample, style: .tiles, metrics: tilesOrder))))
+        // Clicked through: the highlight on the row under the pointer, then the item's own panel behind a back button.
+        variants.append(RenderVariant("sample-bars-hover", label: sampleLabel,
+                                      panel: AnyView(OverviewPanel(model: sample, style: .bars, highlighted: .metric(.cpu)))))
+        variants.append(RenderVariant("sample-list-hover", label: sampleLabel,
+                                      panel: AnyView(OverviewPanel(model: sample, style: .list, highlighted: .metric(.memory)))))
+        variants.append(RenderVariant("sample-tiles-hover", label: sampleLabel,
+                                      panel: AnyView(OverviewPanel(model: sample, style: .tiles, highlighted: .metric(.battery)))))
+        variants.append(RenderVariant("sample-bars-heading-hover", label: sampleLabel,
+                                      panel: AnyView(OverviewPanel(model: sample, style: .bars, highlighted: .heading(.temperatures)))))
+        for (name, metric) in Self.renderDrills {
+            if let panel = panel(for: metric.item) {
+                variants.append(RenderVariant("drill-\(name)", label: label, panel: AnyView(OverviewDetail(id: metric.item, panel: panel))))
+            }
+        }
         return variants
     }
+
+    /// One drill per style, plus a temperature row, which opens Temperatures.
+    static let renderDrills: [(String, OverviewMetric)] = [("bars-cpu", .cpu), ("list-memory", .memory),
+                                                           ("tiles-battery", .battery), ("bars-gputemp", .gpuTemp)]
 
     /// The README's sample figures, matching the condensed mockups.
     static func sampleModel() -> OverviewModel {
