@@ -313,9 +313,9 @@ struct OverviewItemTests {
         let cpu = FakeItem(.cpu)
         let presence = rig.ctx.panels
         presence.opened(cpu)
-        rig.overview.panelDidOpen()
+        rig.overview.processesShown(true)
         #expect(presence.isOpen(.cpu))
-        rig.overview.panelDidClose()
+        rig.overview.processesShown(false)
         #expect(presence.isOpen(.cpu), "the CPU panel is still open")
     }
 }
