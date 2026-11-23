@@ -93,8 +93,21 @@ struct OverviewDetail: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, -4)
+            // Nothing in the item's panel holds focus, so Esc comes as the window's cancel action.
+            .background {
+                Button("Back", action: { back?() })
+                    .keyboardShortcut(.cancelAction)
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
             panel
         }
         .frame(width: 300, alignment: .leading)
     }
+}
+
+extension EnvironmentValues {
+    /// Set by the Settings preview, which draws a panel without letting it take focus or keys.
+    @Entry var isPanelPreview = false
 }

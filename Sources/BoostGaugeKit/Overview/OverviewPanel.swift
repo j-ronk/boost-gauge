@@ -8,6 +8,8 @@ struct OverviewLivePanel: View {
     let settings: AppSettings
     private weak var host: OverviewHost?
     @State private var nav: OverviewNavigator
+    /// The Settings preview is a picture of the panel, with no drill, focus or keys.
+    @Environment(\.isPanelPreview) private var isPreview
 
     init(model: OverviewModel, settings: AppSettings, host: OverviewHost?) {
         self.model = model
@@ -26,7 +28,7 @@ struct OverviewLivePanel: View {
                 OverviewPanel(model: model, style: style, metrics: settings.overviewMetrics(for: style),
                               showsTopProcesses: settings.isSectionShown(.cpuTopProcesses),
                               reorder: { settings.moveOverviewMetric($0, onto: $1) },
-                              links: OverviewLinks(host: host, drill: { id in withAnimation(Self.push) { nav.open(id) } }))
+                              links: !isPreview ? OverviewLinks(host: host, drill: { id in withAnimation(Self.push) { nav.open(id) } }) : nil)
                     .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
             }
         }

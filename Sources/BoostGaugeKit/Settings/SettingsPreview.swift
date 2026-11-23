@@ -13,6 +13,8 @@ struct ItemPreview: View {
                 PanelTop {
                     item.panel
                         .allowsHitTesting(false)
+                        // Out of the key loop too: arrow keys or Return mustn't drive a preview.
+                        .environment(\.isPanelPreview, true)
                         .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
                         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
