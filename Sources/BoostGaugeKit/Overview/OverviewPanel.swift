@@ -23,13 +23,13 @@ struct OverviewLivePanel: View {
         ZStack(alignment: .topLeading) {
             if let id = nav.shown, let panel = host?.panel(for: id) {
                 OverviewDetail(id: id, panel: panel, back: back)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
+                    .transition(.drillSlide(.trailing))
             } else {
                 OverviewPanel(model: model, style: style, metrics: settings.overviewMetrics(for: style),
                               showsTopProcesses: settings.isSectionShown(.cpuTopProcesses),
                               reorder: { settings.moveOverviewMetric($0, onto: $1) },
                               links: !isPreview ? OverviewLinks(host: host, drill: { id in withAnimation(Self.push) { nav.open(id) } }) : nil)
-                    .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
+                    .transition(.drillSlide(.leading))
             }
         }
         .clipped()

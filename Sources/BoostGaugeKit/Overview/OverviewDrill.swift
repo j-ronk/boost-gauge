@@ -111,3 +111,27 @@ extension EnvironmentValues {
     /// Set by the Settings preview, which draws a panel without letting it take focus or keys.
     @Entry var isPanelPreview = false
 }
+
+/// Slides a whole view by a fraction of its width. `.move` pushes its offset down onto the views present when the
+/// transition starts, so rows an item's panel adds mid-slide (its processes, after a `top` run) landed in place
+/// and showed up stationary. A geometry effect offsets the view as one piece, rows added later included.
+struct DrillSlide: GeometryEffect {
+    /// -1 is a full width to the left, 1 to the right, 0 in place.
+    var fraction: CGFloat
+
+    var animatableData: CGFloat {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: fraction * size.width, y: 0))
+    }
+}
+
+extension AnyTransition {
+    /// In from `edge` and back out to it, as Control Centre's modules do.
+    static func drillSlide(_ edge: HorizontalEdge) -> AnyTransition {
+        .modifier(active: DrillSlide(fraction: edge == .leading ? -1 : 1), identity: DrillSlide(fraction: 0))
+    }
+}
