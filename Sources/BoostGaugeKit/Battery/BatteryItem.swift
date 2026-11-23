@@ -80,11 +80,13 @@ struct EnergyUser: Identifiable {
     var systemHealthPercent: Int?
     var fans: [FanReading] = []
     /// Render samples carry their own chart history; nil draws the live one.
-    var powerCharts: ChartHistory?
-    var historyRange: HistoryRange = .day {
+    var sampleCharts: ChartHistory?
+    /// Charge on Battery's own 10 Days rather than the shared range. Not saved: it's a look further back.
+    var showsTenDays = false {
         // Render samples carry a history pinned to their own clock; reloading against the real one would empty the chart.
         didSet { reloadHistory(now: history == nil ? historyNow : .now) }
     }
+    /// The history file's last 10 days, or its last day to fill gaps in the recorded 24 Hours.
     private(set) var historySegments: [[ChargeSample]] = []
     private(set) var historyNow: Date
 
@@ -114,8 +116,8 @@ struct EnergyUser: Identifiable {
     func reloadHistory(now: Date = .now) {
         historyNow = now
         // Render samples carry their own history so they never touch the real file.
-        historySegments = history?.series(historyRange, now: now)
-            ?? HistoryStore.series(of: fixedHistory, historyRange, now: now)
+        let range: HistoryRange = showsTenDays ? .tenDays : .day
+        historySegments = history?.series(range, now: now) ?? HistoryStore.series(of: fixedHistory, range, now: now)
     }
 }
 
@@ -175,7 +177,7 @@ struct EnergyUser: Identifiable {
     private func read(now: Date, fresh: Bool) {
         if let s = BatteryReader.read(now: now, fresh: fresh) {
             model.snapshot = s
-            ctx.charts.recordPower(s, at: now)
+            ctx.charts.recordBattery(s, at: now)
         }
     }
 
@@ -210,10 +212,9 @@ struct EnergyUser: Identifiable {
     // MARK: History
 
     private func startHistory() {
-        let firstLaunch = !store.fileExists
         store.compact(now: .now)
         historyTask = Task { [weak self] in
-            if firstLaunch { await self?.seedFromPmset() }
+            await self?.fillFromPmset()
             var appended = 0
             while !Task.isCancelled {
                 guard let self else { return }
@@ -234,14 +235,14 @@ struct EnergyUser: Identifiable {
         if panelOpen { model.reloadHistory(now: now) }
     }
 
-    /// First launch only: `pmset -g log` gives a few days of history so the chart doesn't open empty.
-    private func seedFromPmset() async {
+    /// Each launch, `pmset -g log` fills the days before first launch and the time the app was quit, so Charge
+    /// doesn't open empty or with holes. About 2 s of one core on a utility thread, once per launch.
+    private func fillFromPmset() async {
         let (status, out) = await Shell.run("/usr/bin/pmset", ["-g", "log"])
         guard status == 0 else { return }
         let samples = await Task.detached(priority: .utility) { PmsetLogParser.chargeSamples(out) }.value
         let cutoff = Date.now.addingTimeInterval(-HistoryStore.keep)
-        store.seed(samples.filter { $0.date >= cutoff })
-        model.reloadHistory()
+        if store.fill(samples.filter { $0.date >= cutoff }) { model.reloadHistory() }
     }
 
     // MARK: Power source
@@ -299,14 +300,14 @@ struct EnergyUser: Identifiable {
             let panel = BatteryPanel(model: m, ctx: ctx)
             // Every range for every state would triple the renders; one state shows the ranges.
             variants += sample.name == BatterySamples.all[0].name
-                ? RenderVariant.eachRange(sample.name, label: label, panel: panel)
-                : [RenderVariant(sample.name, label: label, panel: AnyView(panel.chartRender(.tenMinutes)))]
+                ? RenderVariant.eachRange(sample.name, label: label, panel: panel, now: m.historyNow)
+                : [RenderVariant(sample.name, label: label, panel: AnyView(panel.chartRender(.tenMinutes, now: m.historyNow)))]
         }
-        // Charge's own range, which the shared one doesn't move.
+        // Charge's own 10 Days, which only Battery has.
         let tenDays = BatterySamples.model(BatterySamples.all[0])
-        tenDays.historyRange = .tenDays
+        tenDays.showsTenDays = true
         variants.append(RenderVariant("\(BatterySamples.all[0].name)-10d", label: AnyView(BatteryLabel(model: tenDays, settings: ctx.settings)),
-                                      panel: AnyView(BatteryPanel(model: tenDays, ctx: ctx).chartRender(.tenMinutes))))
+                                      panel: AnyView(BatteryPanel(model: tenDays, ctx: ctx).chartRender(.tenMinutes, now: tenDays.historyNow))))
         variants.append(RenderVariant("levels", label: AnyView(BatterySamples.LevelStrip()), panel: nil))
         variants.append(RenderVariant("levels-no-percent", label: AnyView(BatterySamples.LevelStrip(showPercentage: false)), panel: nil))
         variants.append(RenderVariant("levels-low-power", label: AnyView(BatterySamples.LevelStrip(lowPower: true)), panel: nil))

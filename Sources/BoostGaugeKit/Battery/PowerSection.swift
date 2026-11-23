@@ -79,6 +79,12 @@ extension ChartHistory {
         record(.powerSystem, load, at: date)
         record(.powerBattery, abs(s.batteryW), at: date)
     }
+
+    /// Battery's beat: the shared power series, and charge, which only Battery charts.
+    func recordBattery(_ s: BatterySnapshot, at date: Date) {
+        recordPower(s, at: date)
+        record(.batteryCharge, Double(s.percent), at: date)
+    }
 }
 
 extension FooterButton {

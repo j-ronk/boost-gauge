@@ -131,10 +131,26 @@ struct BatterySamplesTests {
 
     @Test func switchingRangeKeepsTheSampleClock() {
         let m = BatterySamples.model(sample("charging-34"), now: raw)
-        m.historyRange = .tenDays
+        m.showsTenDays = true
         #expect((9...11).contains(m.historySegments.count))
-        m.historyRange = .day
+        m.showsTenDays = false
         #expect(m.historySegments.count == 2)
+    }
+
+    /// Charge is on the shared range too, so the sample records it like the menu bar would: every 2 s for the
+    /// last hour, ending on the header's figure, asleep overnight.
+    @Test func sampleRecordsChargeForEveryRange() throws {
+        let m = BatterySamples.model(sample("charging-34"), now: raw)
+        let charts = try #require(m.sampleCharts)
+        let charge = charts(.batteryCharge)
+        let ten = charge.points(.tenMinutes, now: now)
+        #expect(ten.count >= 290)
+        #expect(ten.last?.avg == 34)
+        #expect(ten.contains { $0.avg == 31 }, "plugged in at 31% five minutes ago")
+        #expect(charge.points(.hour, now: now).count >= 239, "thinned to a point per column")
+        let day = charge.slice(.day, now: now)
+        let runs = ChartLine.runs(day.points, gap: day.spacing * ChartLayout.gapFactor)
+        #expect(runs.count == 2, "one break for the night")
     }
 
     @Test func renderNowIsAMidAfternoonInThePast() {

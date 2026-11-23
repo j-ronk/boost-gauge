@@ -248,6 +248,7 @@ struct ChartHeading<Accessory: View>: View {
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
+                .fixedSize()
             Spacer(minLength: 0)
             accessory
         }
@@ -387,7 +388,7 @@ struct MetricChart: View {
 
 /// The plot and its legend. Hover lives here so a pointer move redraws these alone, not the slicing and thinning
 /// in `MetricChart`.
-private struct ChartPlot: View {
+struct ChartPlot: View {
     let lines: [ChartLine]
     let start: TimeInterval
     let end: TimeInterval

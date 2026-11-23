@@ -64,17 +64,18 @@ import SwiftUI
 
 extension RenderVariant {
     /// The same panel at each chart range: `name` at 10 Min, then `name-1h` and `name-24h`.
-    @MainActor static func eachRange(_ name: String, label: AnyView, panel: some View) -> [RenderVariant] {
+    @MainActor static func eachRange(_ name: String, label: AnyView, panel: some View,
+                                     now: Date = ChartSamples.now) -> [RenderVariant] {
         ChartRange.allCases.map { range in
             RenderVariant(range == .tenMinutes ? name : "\(name)-\(range.rawValue)", label: label,
-                          panel: AnyView(panel.chartRender(range)))
+                          panel: AnyView(panel.chartRender(range, now: now)))
         }
     }
 }
 
 extension View {
     /// A render's chart: pinned to `range` and to the sample clock.
-    @MainActor func chartRender(_ range: ChartRange) -> some View {
-        environment(\.chartRangeOverride, range).environment(\.chartNowOverride, ChartSamples.now)
+    @MainActor func chartRender(_ range: ChartRange, now: Date = ChartSamples.now) -> some View {
+        environment(\.chartRangeOverride, range).environment(\.chartNowOverride, now)
     }
 }

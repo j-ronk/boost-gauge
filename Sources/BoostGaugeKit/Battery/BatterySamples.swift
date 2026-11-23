@@ -95,13 +95,33 @@ import SwiftUI
 
     static func model(_ sample: Sample, now: Date = .now) -> BatteryModel {
         let at = renderNow(now)
-        let m = BatteryModel(history: nil, fixedHistory: history(for: sample, now: at), now: at)
+        let charge = history(for: sample, now: at)
+        let m = BatteryModel(history: nil, fixedHistory: charge, now: at)
         m.snapshot = sample.snapshot
         m.users = users
         m.usersLoaded = true
         m.fans = fans
-        m.powerCharts = powerHistory(sample.snapshot, now: ChartSamples.now)
+        let charts = powerHistory(sample.snapshot, now: at)
+        recordCharge(charge, into: charts, now: at)
+        m.sampleCharts = charts
         return m
+    }
+
+    /// The minute readings into the charge series, and every two seconds over the last hour (the minute's figure
+    /// held, as the battery reports whole percents), as the menu bar records them. Sleep stays a gap.
+    static func recordCharge(_ samples: [ChargeSample], into h: ChartHistory, now: Date) {
+        let series = h(.batteryCharge)
+        let fine = now.addingTimeInterval(-3600)
+        for (i, s) in samples.enumerated() where s.date > now.addingTimeInterval(-86_400) {
+            guard s.date >= fine else { series.record(Double(s.percent), at: s.date); continue }
+            let next = i + 1 < samples.count ? samples[i + 1].date : s.date.addingTimeInterval(2)
+            let until = next.timeIntervalSince(s.date) <= 120 ? next : s.date.addingTimeInterval(2)
+            var t = s.date
+            while t < until {
+                series.record(Double(s.percent), at: t)
+                t += 2
+            }
+        }
     }
 
     /// The most recent 15:40, so the day chart's overnight sleep lands at night on its axis whenever the render runs.

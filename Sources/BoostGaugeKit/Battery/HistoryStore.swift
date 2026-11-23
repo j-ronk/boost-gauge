@@ -40,6 +40,21 @@ enum HistoryRange: Hashable, CaseIterable, Sendable {
     }
 }
 
+/// The Charge chart's choice: the range every chart shares, or Battery's own 10 Days from the history file.
+enum ChargeRange: Hashable, Sendable {
+    case shared(ChartRange)
+    case tenDays
+
+    static let all: [ChargeRange] = ChartRange.allCases.map(ChargeRange.shared) + [.tenDays]
+
+    var title: String {
+        switch self {
+        case let .shared(range): range.title
+        case .tenDays: HistoryRange.tenDays.title
+        }
+    }
+}
+
 /// Battery charge history as an append-only CSV ("epochSeconds,percent,charging"), one line a minute, kept 10 days.
 /// Plain text so a bad write costs one line, not the file.
 final class HistoryStore {
@@ -73,11 +88,30 @@ final class HistoryStore {
         appendToFile(Self.line(sample) + "\n")
     }
 
-    /// First-launch backfill from `pmset -g log`: merged in date order, then the file is rewritten once.
-    func seed(_ older: [ChargeSample]) {
-        guard !older.isEmpty else { return }
-        samples = (older + samples).sorted { $0.date < $1.date }
+    /// A logged reading this close to one of ours is the same stretch; ours are a minute apart while the app runs.
+    static let fillSpacing: TimeInterval = 120
+
+    /// Backfill from `pmset -g log` at launch: only readings in our gaps (before first launch, while quit), merged
+    /// in date order, then the file is rewritten once. Returns whether anything was added.
+    @discardableResult
+    func fill(_ logged: [ChargeSample]) -> Bool {
+        let times = samples.map { $0.date.timeIntervalSinceReferenceDate }
+        let added = logged.filter { !Self.near($0.date.timeIntervalSinceReferenceDate, in: times, within: Self.fillSpacing) }
+        guard !added.isEmpty else { return false }
+        samples = (added + samples).sorted { $0.date < $1.date }
         rewrite()
+        return true
+    }
+
+    /// Whether sorted `times` has one within `distance` of `t`.
+    static func near(_ t: TimeInterval, in times: [TimeInterval], within distance: TimeInterval) -> Bool {
+        var lo = 0, hi = times.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if times[mid] < t { lo = mid + 1 } else { hi = mid }
+        }
+        if lo < times.count, times[lo] - t <= distance { return true }
+        return lo > 0 && t - times[lo - 1] <= distance
     }
 
     func compact(now: Date) {

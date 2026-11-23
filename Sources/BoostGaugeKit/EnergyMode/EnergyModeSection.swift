@@ -61,8 +61,8 @@ public struct ControlSamples: View {
                 EnergyModePicker(selection: .constant(mode))
             }
             EnergyModePicker(selection: .constant(nil)).disabled(true)
-            HistoryRangePicker(selection: .constant(.day))
-            HistoryRangePicker(selection: .constant(.tenDays))
+            ChargeRangePicker(selection: .constant(.shared(.day)))
+            ChargeRangePicker(selection: .constant(.tenDays))
         }
         .padding()
         .frame(width: 300)

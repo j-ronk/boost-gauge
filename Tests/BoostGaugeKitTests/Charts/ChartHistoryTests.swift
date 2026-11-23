@@ -338,7 +338,8 @@ struct ChartSamplesTests {
 
     @Test func everyRangeHasALineAndTheDayHasTheOvernightGap() {
         let h = ChartSamples.make(now: now)
-        for id in ChartSeriesID.allCases {
+        // Charge comes from Battery's own samples, which follow the battery states (BatterySamplesTests).
+        for id in ChartSeriesID.allCases where id != .batteryCharge {
             // The 10 Min ring holds the last 600 seconds: 300 readings two seconds apart.
             #expect(h(id).points(.tenMinutes, now: now).count == 300, "\(id)")
             let day = h(id).slice(.day, now: now)

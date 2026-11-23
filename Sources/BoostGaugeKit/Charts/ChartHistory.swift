@@ -47,6 +47,7 @@ public enum ChartSeriesID: String, CaseIterable, Sendable {
     case tempsGPU = "temps.gpu"
     case powerSystem = "power.system"
     case powerBattery = "power.battery"
+    case batteryCharge = "battery.charge"
 }
 
 /// One chart point: a bucket's average and its highest reading. Times are seconds since the reference date.

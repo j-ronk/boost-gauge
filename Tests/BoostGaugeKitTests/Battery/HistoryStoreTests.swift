@@ -89,7 +89,7 @@ struct HistoryStoreTests {
         let tmp = TempHistory()
         let store = HistoryStore(url: tmp.url)
         let samples = PmsetLogParser.chargeSamples(Fixture.string("Battery/pmset-log-sample.txt"))
-        store.seed(samples)
+        store.fill(samples)
         let end = samples.last!.date
         let segments = store.series(.tenDays, now: end)
         #expect(segments.map(\.count) == [3, 2, 1, 2])
@@ -122,14 +122,47 @@ struct HistoryStoreTests {
         #expect(!store.fileExists)
     }
 
-    @Test func seedMergesInOrder() {
+    @Test func fillMergesInOrder() {
         let tmp = TempHistory()
         let store = HistoryStore(url: tmp.url)
         store.append(ChargeSample(date: now, percent: 30, charging: false))
-        store.seed([ChargeSample(date: now.addingTimeInterval(-7200), percent: 35, charging: false),
-                    ChargeSample(date: now.addingTimeInterval(-3600), percent: 33, charging: false)])
+        #expect(store.fill([ChargeSample(date: now.addingTimeInterval(-7200), percent: 35, charging: false),
+                            ChargeSample(date: now.addingTimeInterval(-3600), percent: 33, charging: false)]))
         #expect(store.samples.map(\.percent) == [35, 33, 30])
         #expect(HistoryStore(url: tmp.url).samples.map(\.percent) == [35, 33, 30])
+    }
+
+    /// Every launch reads pmset's log; only readings where the app wasn't recording go in.
+    @Test func fillOnlyTakesTheGaps() {
+        let tmp = TempHistory()
+        let store = HistoryStore(url: tmp.url)
+        let start = now.addingTimeInterval(-3 * 3600)
+        for m in 0..<60 { store.append(ChargeSample(date: start.addingTimeInterval(Double(m) * 60), percent: 90, charging: false)) }
+        let logged = [ChargeSample(date: start.addingTimeInterval(-1800), percent: 95, charging: true),
+                      ChargeSample(date: start.addingTimeInterval(1210), percent: 50, charging: false),
+                      ChargeSample(date: start.addingTimeInterval(3540 + 100), percent: 88, charging: false),
+                      ChargeSample(date: start.addingTimeInterval(3540 + 600), percent: 85, charging: false)]
+        #expect(store.fill(logged))
+        #expect(store.samples.count == 62)
+        #expect(store.samples.first?.percent == 95)
+        #expect(store.samples.last?.percent == 85)
+        #expect(!store.samples.contains { $0.percent == 50 || $0.percent == 88 })
+        #expect(!store.fill(logged), "a second launch adds nothing new")
+        #expect(HistoryStore(url: tmp.url).samples.count == 62)
+    }
+
+    @Test func nearFindsNeighboursEitherSide() {
+        let times: [TimeInterval] = [100, 200, 300]
+        #expect(HistoryStore.near(150, in: times, within: 50))
+        #expect(HistoryStore.near(340, in: times, within: 50))
+        #expect(HistoryStore.near(60, in: times, within: 50))
+        #expect(!HistoryStore.near(351, in: times, within: 50))
+        #expect(!HistoryStore.near(49, in: times, within: 50))
+        #expect(!HistoryStore.near(5, in: [], within: 50))
+    }
+
+    @Test func chargeRangeOffersTheSharedThreeThenTenDays() {
+        #expect(ChargeRange.all.map(\.title) == ["10 Min", "1 Hour", "24 Hours", "10 Days"])
     }
 
     @Test func rangeTitles() {
