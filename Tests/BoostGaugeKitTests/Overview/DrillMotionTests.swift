@@ -29,9 +29,9 @@ struct DrillMotionTests {
         var body: some View {
             ZStack(alignment: .topLeading) {
                 if pushed.on {
-                    OverviewDetail(id: .battery, panel: panel).transition(.drillSlide(.trailing))
+                    OverviewDetail(id: .battery, panel: panel).transition(OverviewLivePanel.detailTransition)
                 } else {
-                    Color.clear.frame(width: 300, height: 200).transition(.drillSlide(.leading))
+                    Color.clear.frame(width: 300, height: 200).transition(OverviewLivePanel.overviewTransition)
                 }
             }
             .clipped()
@@ -73,7 +73,8 @@ struct DrillMotionTests {
             guard model.usersLoaded, let header = Self.leftEdge(rep, rows: Self.band(rep, from: 0.665, to: 0.69)),
                   let energy = Self.leftEdge(rep, rows: Self.band(rep, from: 0.79, to: 0.84)),
                   header > rep.pixelsWide / 10, header < rep.pixelsWide * 8 / 10 else { continue }
-            // Mid-slide: the late rows' icons line up with the Health rows above them, not at their final place.
+            // Bands: Battery's Health rows (Maximum Capacity) and its Using Energy rows, in the sample panel at 2x.
+            // A layout change to that panel moves them. Mid-slide, the late rows line up with Health, not their final x.
             #expect(abs(energy - header) < rep.pixelsWide / 15, "Health rows at \(header) px, energy rows at \(energy) px")
             checked += 1
         }

@@ -23,13 +23,13 @@ struct OverviewLivePanel: View {
         ZStack(alignment: .topLeading) {
             if let id = nav.shown, let panel = host?.panel(for: id) {
                 OverviewDetail(id: id, panel: panel, back: back)
-                    .transition(.drillSlide(.trailing))
+                    .transition(Self.detailTransition)
             } else {
                 OverviewPanel(model: model, style: style, metrics: settings.overviewMetrics(for: style),
                               showsTopProcesses: settings.isSectionShown(.cpuTopProcesses),
                               reorder: { settings.moveOverviewMetric($0, onto: $1) },
                               links: !isPreview ? OverviewLinks(host: host, drill: { id in withAnimation(Self.push) { nav.open(id) } }) : nil)
-                    .transition(.drillSlide(.leading))
+                    .transition(Self.overviewTransition)
             }
         }
         .clipped()
@@ -43,6 +43,9 @@ struct OverviewLivePanel: View {
     }
 
     private static let push = Animation.smooth(duration: 0.3)
+    /// Each slides by its own width, which is the panel's: both are 300 pt wide.
+    static let detailTransition = AnyTransition.drillSlide(.trailing)
+    static let overviewTransition = AnyTransition.drillSlide(.leading)
 
     private func back() {
         withAnimation(Self.push) { nav.back() }
