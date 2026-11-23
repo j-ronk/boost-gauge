@@ -19,6 +19,7 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
     private var storedTemperatureUnit: TemperatureUnit
     private var storedNetworkUnit: NetworkUnit
     private var storedCaptionAlignment: CaptionAlignment
+    private var storedLargeValues: Bool
     private var storedItemOrder: [ItemID]
     private var hiddenSections: Set<PanelSectionID>
     private var storedOverviewStyle: OverviewStyle
@@ -37,6 +38,7 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         storedTemperatureUnit = defaults.string(forKey: Keys.temperatureUnit).flatMap(TemperatureUnit.init) ?? .celsius
         storedNetworkUnit = defaults.string(forKey: Keys.networkUnit).flatMap(NetworkUnit.init) ?? .bytes
         storedCaptionAlignment = defaults.string(forKey: Keys.captionAlignment).flatMap(CaptionAlignment.init) ?? .center
+        storedLargeValues = defaults.bool(forKey: Keys.largeValues)
         storedItemOrder = ItemOrder.normalized(defaults.stringArray(forKey: Keys.itemOrder))
         // Sections are on unless turned off, so settings saved before section toggles existed show everything.
         hiddenSections = Set(PanelSectionID.allCases.filter { defaults.object(forKey: Self.sectionKey($0)) as? Bool == false })
@@ -186,6 +188,12 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         set { storedCaptionAlignment = newValue; defaults.set(newValue.rawValue, forKey: Keys.captionAlignment) }
     }
 
+    /// Smaller captions over bigger values in the menu bar. Off keeps the original look.
+    public var largeValues: Bool {
+        get { storedLargeValues }
+        set { storedLargeValues = newValue; defaults.set(newValue, forKey: Keys.largeValues) }
+    }
+
     /// Left to right in the menu bar. Always holds every item exactly once.
     public var itemOrder: [ItemID] {
         get { storedItemOrder }
@@ -201,6 +209,7 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         static let temperatureUnit = "temperatureUnit"
         static let networkUnit = "networkUnit"
         static let captionAlignment = "label.captionAlignment"
+        static let largeValues = "label.largeValues"
         static let itemOrder = "item.order"
         static let overviewStyle = "overview.style"
         static let overviewOrder = "overview.order"

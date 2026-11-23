@@ -168,6 +168,10 @@ import SwiftUI
         Binding(get: { self.settings.captionAlignment }, set: { self.settings.captionAlignment = $0 })
     }
 
+    var largeValues: Binding<Bool> {
+        Binding(get: { self.settings.largeValues }, set: { self.settings.largeValues = $0 })
+    }
+
     var launchAtLogin: Binding<Bool> {
         Binding(get: { self.loginItemOn }, set: {
             self.loginItem.setEnabled($0)
@@ -484,6 +488,7 @@ private struct MenuBarPage: View {
                 Picker("Label Alignment", selection: model.captionAlignment) {
                     ForEach(CaptionAlignment.allCases, id: \.self) { Text(SettingsModel.title($0)).tag($0) }
                 }
+                Toggle("Large Values", isOn: model.largeValues)
             }
         }
     }
