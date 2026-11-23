@@ -127,6 +127,8 @@ struct SettingsViewTests {
         model.temperatureUnit.wrappedValue = .fahrenheit
         model.networkUnit.wrappedValue = .bits
         model.captionAlignment.wrappedValue = .leading
+        model.largeValues.wrappedValue = true
+        #expect(ctx.settings.largeValues)
         #expect(ctx.settings.temperatureUnit == .fahrenheit)
         #expect(ctx.settings.networkUnit == .bits)
         #expect(ctx.settings.captionAlignment == .leading)

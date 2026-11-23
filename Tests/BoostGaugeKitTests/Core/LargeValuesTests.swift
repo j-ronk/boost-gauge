@@ -34,6 +34,14 @@ struct LargeValuesTests {
         #expect(Double(large.maxY - large.minY) > Double(normal.maxY - normal.minY) * 1.15)
     }
 
+    @Test(arguments: CaptionAlignment.allCases)
+    func captionAndValueDontTouch(alignment: CaptionAlignment) throws {
+        // A space keeps the other line's height, so each line lands where it does in the full label.
+        let caption = try Self.inkBounds(StackedLabel(caption: "POWER", value: " ", widest: "188W").image(alignment: alignment, large: true))
+        let value = try Self.inkBounds(StackedLabel(caption: " ", value: "188W", widest: "188W").image(alignment: alignment, large: true))
+        #expect(caption.maxY < value.minY, "caption rows ...\(caption.maxY), value rows \(value.minY)...")
+    }
+
     @Test func widthIsStableAsValuesChange() {
         for large in [false, true] {
             let widths = ["0%", "7%", "24%", "100%", "—"].map {
