@@ -91,8 +91,9 @@ final class HistoryStore {
     /// A logged reading this close to one of ours is the same stretch; ours are a minute apart while the app runs.
     static let fillSpacing: TimeInterval = 120
 
-    /// Backfill from `pmset -g log` at launch: only readings in our gaps (before first launch, while quit), merged
-    /// in date order, then the file is rewritten once. Returns whether anything was added.
+    /// Backfill from `pmset -g log` at launch: only readings in our gaps, merged in date order, then the file is
+    /// rewritten once. Gaps include sleeps: pmset's sleep and wake readings show the charge lost overnight, which
+    /// Charge is there to show. Returns whether anything was added.
     @discardableResult
     func fill(_ logged: [ChargeSample]) -> Bool {
         let times = samples.map { $0.date.timeIntervalSinceReferenceDate }
@@ -103,7 +104,8 @@ final class HistoryStore {
         return true
     }
 
-    /// Whether sorted `times` has one within `distance` of `t`.
+    /// Whether `times` has one within `distance` of `t`. They must be sorted; `samples` always is, even after the
+    /// clock goes backwards, because `append` re-sorts.
     static func near(_ t: TimeInterval, in times: [TimeInterval], within distance: TimeInterval) -> Bool {
         var lo = 0, hi = times.count
         while lo < hi {

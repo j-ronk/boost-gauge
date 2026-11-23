@@ -151,6 +151,16 @@ struct HistoryStoreTests {
         #expect(HistoryStore(url: tmp.url).samples.count == 62)
     }
 
+    /// pmset's wake reading inside a sleep the app was running across goes in: it shows the charge lost asleep.
+    @Test func fillTakesReadingsInsideASleep() {
+        let tmp = TempHistory()
+        let store = HistoryStore(url: tmp.url)
+        store.append(ChargeSample(date: now.addingTimeInterval(-8 * 3600), percent: 80, charging: false))
+        store.append(ChargeSample(date: now, percent: 72, charging: false))
+        #expect(store.fill([ChargeSample(date: now.addingTimeInterval(-4 * 3600), percent: 76, charging: false)]))
+        #expect(store.samples.map(\.percent) == [80, 76, 72])
+    }
+
     @Test func nearFindsNeighboursEitherSide() {
         let times: [TimeInterval] = [100, 200, 300]
         #expect(HistoryStore.near(150, in: times, within: 50))

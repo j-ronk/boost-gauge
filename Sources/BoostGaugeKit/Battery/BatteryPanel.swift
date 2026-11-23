@@ -64,7 +64,7 @@ struct BatteryPanel: View {
 /// Charge on the shared range like every chart, plus Battery's own 10 Days from the history file. 24 Hours fills
 /// the recorded line's gaps from that file, which pmset's log backfills, so it covers time the app wasn't running.
 struct ChargeSection: View {
-    @Bindable var model: BatteryModel
+    let model: BatteryModel
     let charts: ChartHistory
     let settings: AppSettings
 
@@ -75,7 +75,6 @@ struct ChargeSection: View {
         let shared = rangeOverride ?? settings.chartRange
         let selection: ChargeRange = model.showsTenDays ? .tenDays : .shared(shared)
         let series = charts(.batteryCharge)
-        let _ = series.revision
         let now: Date
         let span: TimeInterval
         let gap: TimeInterval
@@ -85,14 +84,15 @@ struct ChargeSection: View {
             now = model.historyNow
             span = HistoryRange.tenDays.span
             gap = HistoryRange.tenDays.bucket * 3
-            runs = Self.points(model.historySegments)
+            runs = model.historyPoints
         case let .shared(range):
+            _ = series.revision
             now = nowOverride ?? Date.now
             span = range.span
             let slice = series.slice(range, now: now)
             gap = max(slice.spacing, Double(settings.refreshSeconds)) * ChartLayout.gapFactor
             runs = range == .day
-                ? ChartLine.filled(slice.points, gap: gap, logged: Self.points(model.historySegments))
+                ? ChartLine.filled(slice.points, gap: gap, logged: model.historyPoints)
                 : ChartLine.runs(slice.points, gap: gap)
         }
         let end = now.timeIntervalSinceReferenceDate
@@ -111,13 +111,6 @@ struct ChargeSection: View {
                       ticks: ChartTime.ticks(from: now.addingTimeInterval(-span), to: now), gap: gap,
                       sources: [ChartSource("Charge", series, live: model.snapshot.map { Double($0.percent) })],
                       valueText: Format.percent, accessibilityLabel: "Charge, \(selection.title)")
-        }
-    }
-
-    /// The store already splits its samples at sleep and quit gaps.
-    static func points(_ segments: [[ChargeSample]]) -> [[ChartPoint]] {
-        segments.map { segment in
-            segment.map { ChartPoint(t: $0.date.timeIntervalSinceReferenceDate, avg: Float($0.percent), peak: Float($0.percent)) }
         }
     }
 }
@@ -141,8 +134,9 @@ extension ChartLine {
             if !run.isEmpty { runs.append((run, true)) }
         }
         runs.sort { $0.points[0].t < $1.points[0].t }
-        // Dropping the covered logged points leaves up to `gap` either side; a logged bucket can add as much again.
-        let join = 2 * max(gap, HistoryRange.day.bucket)
+        // Dropping the covered logged points leaves up to `gap`, plus up to a bucket to the next logged one; any
+        // more and the line would cross a real hole.
+        let join = gap + HistoryRange.day.bucket
         var out: [(points: [ChartPoint], logged: Bool)] = []
         for run in runs {
             if let last = out.last, last.logged || run.logged, let a = last.points.last, run.points[0].t - a.t <= join {
@@ -161,7 +155,7 @@ struct ChargeRangePicker: View {
     var body: some View {
         CapsulePicker(title: "Charge Range", selection: Binding(get: { selection }, set: { if let r = $0 { selection = r } }),
                       options: ChargeRange.all.map { .init(value: $0, title: $0.title) },
-                      // Four ranges and the title fit the panel width only a little tighter than the shared three.
+                      // At the shared pickers' 8 the fourth range pushes the title onto two lines.
                       height: 20, fillsWidth: false, segmentPadding: 6)
             .font(.subheadline)
     }

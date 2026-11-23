@@ -248,6 +248,7 @@ struct ChartHeading<Accessory: View>: View {
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
+                // A wrapped title reads as two words; every picker beside one is sized to leave it room.
                 .fixedSize()
             Spacer(minLength: 0)
             accessory

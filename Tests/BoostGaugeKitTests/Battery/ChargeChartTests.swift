@@ -20,6 +20,24 @@ struct ChargeChartTests {
         #expect(line.contains { $0.avg == 70 && $0.t > 3000 && $0.t < 9000 })
     }
 
+    /// The usual case: logged before launch, recorded since. One line, the logged part ending where recording starts.
+    @Test func loggedBeforeLaunchJoinsTheRecordedLine() {
+        let recorded = points(stride(from: 6000, to: 9000, by: 360), 60)
+        let logged = [points(stride(from: 0, to: 9000, by: 300), 70)]
+        let runs = ChartLine.filled(recorded, gap: 900, logged: logged)
+        #expect(runs.count == 1)
+        #expect(runs[0].first?.avg == 70)
+        #expect(runs[0].last?.avg == 60)
+        #expect(!runs[0].contains { $0.avg == 70 && $0.t > 6000 - 900 })
+    }
+
+    /// A recorded run ends at sleep; a logged reading well after it is a real hole, not a join.
+    @Test func farLoggedReadingDoesNotBridgeAHole() {
+        let recorded = points(stride(from: 0, to: 3000, by: 60), 80)
+        let logged = [[ChartPoint(t: 3000 + 150 + 300 + 60, avg: 70, peak: 70)]]
+        #expect(ChartLine.filled(recorded, gap: 150, logged: logged).count == 2)
+    }
+
     @Test func twoRecordedRunsStayApartWithNothingLogged() {
         let recorded = points(stride(from: 0, to: 600, by: 60), 80) + points(stride(from: 800, to: 1400, by: 60), 80)
         #expect(ChartLine.filled(recorded, gap: 150, logged: []).count == 2)
@@ -28,6 +46,19 @@ struct ChargeChartTests {
     @Test func loggedSegmentsKeepTheirOwnBreaks() {
         let logged = [points(stride(from: 0, to: 1500, by: 300), 50), points(stride(from: 20_000, to: 21_500, by: 300), 40)]
         #expect(ChartLine.filled([], gap: 900, logged: logged).count == 2)
+    }
+
+    @Test func tenDaysSwitchesTheLoggedPoints() {
+        let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+        let samples = stride(from: -5 * 86_400.0, through: 0, by: 600).map {
+            ChargeSample(date: now.addingTimeInterval($0), percent: 50, charging: false)
+        }
+        let m = BatteryModel(history: nil, fixedHistory: samples, now: now)
+        let day = m.historyPoints.flatMap { $0 }
+        #expect(day.allSatisfy { $0.t >= now.timeIntervalSinceReferenceDate - 86_400 })
+        m.showsTenDays = true
+        #expect(m.historyPoints.flatMap { $0 }.count > day.count)
+        #expect(m.historyPoints.count == m.historySegments.count)
     }
 
     @Test func batteryBeatRecordsChargeAndPower() {

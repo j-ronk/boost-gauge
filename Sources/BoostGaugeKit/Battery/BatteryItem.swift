@@ -88,6 +88,8 @@ struct EnergyUser: Identifiable {
     }
     /// The history file's last 10 days, or its last day to fill gaps in the recorded 24 Hours.
     private(set) var historySegments: [[ChargeSample]] = []
+    /// The same as chart points, made once per reload rather than on every redraw.
+    private(set) var historyPoints: [[ChartPoint]] = []
     private(set) var historyNow: Date
 
     @ObservationIgnored let history: HistoryStore?
@@ -118,6 +120,10 @@ struct EnergyUser: Identifiable {
         // Render samples carry their own history so they never touch the real file.
         let range: HistoryRange = showsTenDays ? .tenDays : .day
         historySegments = history?.series(range, now: now) ?? HistoryStore.series(of: fixedHistory, range, now: now)
+        // The store already splits its samples at sleep and quit gaps.
+        historyPoints = historySegments.map { segment in
+            segment.map { ChartPoint(t: $0.date.timeIntervalSinceReferenceDate, avg: Float($0.percent), peak: Float($0.percent)) }
+        }
     }
 }
 
@@ -236,7 +242,7 @@ struct EnergyUser: Identifiable {
     }
 
     /// Each launch, `pmset -g log` fills the days before first launch and the time the app was quit, so Charge
-    /// doesn't open empty or with holes. About 2 s of one core on a utility thread, once per launch.
+    /// doesn't open empty or with holes. The log runs to megabytes, so it's parsed off the main actor.
     private func fillFromPmset() async {
         let (status, out) = await Shell.run("/usr/bin/pmset", ["-g", "log"])
         guard status == 0 else { return }
