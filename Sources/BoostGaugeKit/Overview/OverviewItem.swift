@@ -25,15 +25,48 @@ import UniformTypeIdentifiers
     /// Items whose panel stands in for the Overview's, counted per open panel.
     private var details: [ItemID: Int] = [:]
     private var processesShown = 0
+    /// How long a source that started a fresh baseline (CPU) takes to settle its first value.
+    private let settleDelay: Duration
+    private var settleTask: Task<Void, Never>?
+    private var glyphSourcesFed: [ItemID] = []
 
     public convenience init(_ ctx: AppContext) {
         self.init(ctx, readBattery: { BatteryReader.read(fresh: $0) })
     }
 
-    init(_ ctx: AppContext, readBattery: @escaping (_ fresh: Bool) -> BatterySnapshot?) {
+    init(_ ctx: AppContext, readBattery: @escaping (_ fresh: Bool) -> BatterySnapshot?,
+         settleDelay: Duration = .milliseconds(650)) {
         self.ctx = ctx
         self.readBattery = readBattery
+        self.settleDelay = settleDelay
         watcher = ShownWatcher(settings: ctx.settings, id: .overview) { [weak self] in self?.model.clearSparks() }
+        glyphSourcesFed = glyphSources
+        watchGlyph()
+    }
+
+    /// A newly chosen bar fills now rather than a beat later.
+    private func watchGlyph() {
+        withObservationTracking {
+            _ = settings.overviewGlyphMetrics
+        } onChange: { [weak self] in
+            // onChange fires before the new value is stored, so read it on the next main-actor turn.
+            Task { @MainActor in
+                guard let self else { return }
+                self.glyphDidChange()
+                self.watchGlyph()
+            }
+        }
+    }
+
+    func glyphDidChange() {
+        let before = glyphSourcesFed
+        glyphSourcesFed = glyphSources
+        guard settings.isShown(.overview) else { return }
+        // Only sources nothing ticked this beat; the rest already have a fresh value to copy.
+        let alreadyFed = Set(before + (panelOpen ? Self.panelSources : []) + ItemID.allCases.filter { details[$0, default: 0] > 0 })
+        feed(glyphSourcesFed.filter { !alreadyFed.contains($0) }, now: .now)
+        collect(now: .now)
+        settleIfNeeded()
     }
 
     private var settings: AppSettings { ctx.settings }
@@ -58,8 +91,10 @@ import UniformTypeIdentifiers
     /// The scheduler ticks items in registration order and Overview registers last, so the sources in the menu bar
     /// have already ticked this beat. The rest are ticked here; a source out of the menu bar otherwise never updates.
     public func tick(now: Date) {
+        glyphSourcesFed = glyphSources
         feed(fedSources, now: now)
         collect(now: now)
+        settleIfNeeded()
         model.recordSparks(OverviewStyle.list.metrics.filter(isFresh))
     }
 
@@ -69,6 +104,19 @@ import UniformTypeIdentifiers
         let glyph = glyphSources
         feed(Self.panelSources.filter { !glyph.contains($0) }, now: .now)
         collect(now: .now, freshBattery: true)
+        settleIfNeeded()
+    }
+
+    /// CPU's first read after a fresh baseline lands a moment after its tick (its settle read). Copy it then rather
+    /// than showing "—" until the next beat. Only the copy is repeated: no source is read and no spark is added.
+    private func settleIfNeeded() {
+        guard model.reading.cpu == nil, ctx.scheduler.item(.cpu) is CPUItem, isFresh(.cpu) else { return }
+        settleTask?.cancel()
+        settleTask = Task { [weak self, settleDelay] in
+            try? await Task.sleep(for: settleDelay)
+            guard !Task.isCancelled, let self else { return }
+            self.collect(now: .now, readsBatteryAgain: false)
+        }
     }
 
     public func panelDidClose() {
@@ -136,8 +184,8 @@ import UniformTypeIdentifiers
             || settings.overviewGlyphMetrics.contains(.battery)
     }
 
-    private func collect(now: Date, freshBattery: Bool = false) {
-        if readsBattery { battery = readBattery(freshBattery) }
+    private func collect(now: Date, freshBattery: Bool = false, readsBatteryAgain: Bool = true) {
+        if readsBattery && readsBatteryAgain { battery = readBattery(freshBattery) }
         let cpu = ctx.scheduler.item(.cpu) as? CPUItem
         var r = OverviewReading()
         r.cpu = cpu?.model.total

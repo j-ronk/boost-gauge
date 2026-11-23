@@ -190,6 +190,8 @@ struct OverviewGlyphSettingsTests {
 @MainActor
 struct OverviewItemTests {
     /// Every source the Overview reads, with counters on the reads that cost something.
+    /// Weak captures: items hold the context strongly, so they outlive the rig, and a late glyph or settle
+    /// task can still read through these.
     @MainActor final class Rig {
         let suite = TestDefaults()
         let ctx: AppContext
@@ -207,15 +209,15 @@ struct OverviewItemTests {
             battery.percent = 34
             battery.systemLoadW = 18.2
             ctx.scheduler.register(cpu)
-            ctx.scheduler.register(GPUItem(ctx, read: { [unowned self] in self.gpuReads += 1; return 40 }))
+            ctx.scheduler.register(GPUItem(ctx, read: { [weak self] in self?.gpuReads += 1; return 40 }))
             ctx.scheduler.register(MemoryItem(ctx, read: {
                 MemoryStats(usedBytes: 8 << 30, totalBytes: 16 << 30, usedPercent: 50)
             }))
-            ctx.scheduler.register(TempsItem(ctx, readTemperatures: { [unowned self] in
-                self.temperatureReads += 1
+            ctx.scheduler.register(TempsItem(ctx, readTemperatures: { [weak self] in
+                self?.temperatureReads += 1
                 return [("Tp01", 58), ("Tg05", 54)]
             }, readFans: { [] }))
-            overview = OverviewItem(ctx, readBattery: { [unowned self] _ in self.batteryReads += 1; return battery })
+            overview = OverviewItem(ctx, readBattery: { [weak self] _ in self?.batteryReads += 1; return battery })
             ctx.scheduler.register(overview)
         }
     }

@@ -161,3 +161,51 @@ struct OverviewDrillTests {
         #expect(fromNothing.metric == .cpu, "leaving another row keeps this one lit")
     }
 }
+
+@MainActor
+struct OverviewFirstBeatTests {
+    private func rig(settle: Duration? = .milliseconds(10)) -> (AppContext, OverviewItem, TestDefaults) {
+        let suite = TestDefaults()
+        let ctx = AppContext(settings: AppSettings(defaults: suite.defaults), powerSource: PowerSourceMonitor(initial: .adapter))
+        let feed = TickFeed()
+        ctx.scheduler.register(CPUItem(ctx, readTicks: feed.read, settleDelay: settle))
+        ctx.scheduler.register(GPUItem(ctx, read: { 40 }))
+        ctx.scheduler.register(MemoryItem(ctx, read: { MemoryStats(usedBytes: 8 << 30, totalBytes: 16 << 30, usedPercent: 50) }))
+        ctx.scheduler.register(TempsItem(ctx, readTemperatures: { [("Tp01", 58), ("Tg05", 54)] }, readFans: { [] }))
+        let overview = OverviewItem(ctx, readBattery: { _ in nil }, settleDelay: .milliseconds(40))
+        ctx.scheduler.register(overview)
+        for id in ItemID.allCases { ctx.settings.setShown(id, id == .overview) }
+        return (ctx, overview, suite)
+    }
+
+    @Test func cpuSettlesWithinTheBeatAfterThePanelOpens() async throws {
+        let (ctx, overview, _) = rig()
+        ctx.settings.setGlyphMetricShown(.gpu, true)
+        ctx.settings.setGlyphMetricShown(.cpu, false)
+        try await Task.sleep(for: .milliseconds(20))
+        overview.panelDidOpen()
+        #expect(overview.model.reading.cpu == nil, "a fresh baseline has no value yet")
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(overview.model.reading.cpu == 75)
+    }
+
+    @Test func aNewlyChosenBarFillsWithoutWaitingForTheBeat() async throws {
+        let (ctx, overview, _) = rig()
+        ctx.scheduler.fire(now: .now)
+        #expect(overview.model.reading.temps.hottest == nil)
+        ctx.settings.setGlyphMetricShown(.hottest, true)
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(overview.model.reading.temps.hottest == 58)
+        #expect(OverviewLabel.heights(ctx.settings.overviewGlyphMetrics, overview.model.reading).last == 8)
+    }
+
+    @Test func aNewCPUBarSettlesToo() async throws {
+        let (ctx, overview, _) = rig()
+        ctx.settings.setGlyphMetricShown(.cpu, false)
+        try await Task.sleep(for: .milliseconds(20))
+        ctx.scheduler.fire(now: .now)
+        ctx.settings.setGlyphMetricShown(.cpu, true)
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(overview.model.reading.cpu == 75)
+    }
+}
