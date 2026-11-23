@@ -10,6 +10,8 @@ import SwiftUI
     @ObservationIgnored private(set) var capacityRefresh: Task<Void, Never>?
     @ObservationIgnored private var lastCapacityRead: Date?
     @ObservationIgnored private var previousTotals: (totals: (read: UInt64, write: UInt64), at: Date)?
+    /// Where read and write speeds are recorded; render samples swap in their own.
+    @ObservationIgnored var charts: ChartHistory
     @ObservationIgnored private let readCapacity: @Sendable () -> DiskCapacity?
     @ObservationIgnored private let readTotals: () -> (read: UInt64, write: UInt64)
 
@@ -20,6 +22,7 @@ import SwiftUI
     init(_ ctx: AppContext, readCapacity: @escaping @Sendable () -> DiskCapacity?,
          readTotals: @escaping () -> (read: UInt64, write: UInt64)) {
         self.ctx = ctx
+        charts = ctx.charts
         self.readCapacity = readCapacity
         self.readTotals = readTotals
     }
@@ -29,25 +32,28 @@ import SwiftUI
 
     public func tick(now: Date) {
         refreshCapacity(now: now, force: false)
+        sampleActivity(now: now)
     }
 
     public func panelDidOpen() {
         refreshCapacity(now: .now, force: true)
     }
 
-    /// Read and write rates exist only while the panel is open; closing it drops the baseline so the next open
-    /// starts fresh instead of averaging over the time it was closed.
-    public func panelDidClose() {
-        previousTotals = nil
-        activity = nil
-    }
-
+    /// Read and write rates from the menu bar tick, for the chart. A gap longer than a couple of intervals (hidden,
+    /// asleep) only re-baselines, so no rate is an average over the whole gap.
     func sampleActivity(now: Date) {
         let current = readTotals()
         defer { previousTotals = (current, now) }
-        guard let previous = previousTotals else { return }
-        activity = DiskStats.rates(previous: previous.totals, current: current, elapsed: now.timeIntervalSince(previous.at))
+        guard let previous = previousTotals else { activity = nil; return }
+        let elapsed = now.timeIntervalSince(previous.at)
+        guard elapsed > 0, elapsed <= staleAfter else { activity = nil; return }
+        let rates = DiskStats.rates(previous: previous.totals, current: current, elapsed: elapsed)
+        activity = rates
+        charts.record(.diskRead, rates.read, at: now)
+        charts.record(.diskWrite, rates.write, at: now)
     }
+
+    private var staleAfter: TimeInterval { max(Double(ctx.settings.refreshSeconds) * 2.5, 5) }
 
     /// Free space barely moves and Finder's figure is slow to compute, so the label re-reads it at most once a minute.
     private func refreshCapacity(now: Date, force: Bool) {
@@ -68,14 +74,13 @@ import SwiftUI
         var read: UInt64 = 0
         let sample = DiskItem(ctx, readCapacity: { DiskCapacity(name: "Macintosh HD", available: 412_300_000_000, total: 994_662_584_320) },
                               readTotals: { read += 1; return (read * 24_600_000, read * 1_300_000) })
-        sample.tick(now: .now)
+        sample.charts = ChartHistory()
+        sample.tick(now: .now.addingTimeInterval(-2))
         await sample.capacityRefresh?.value
-        sample.sampleActivity(now: .now.addingTimeInterval(-2))
         sample.sampleActivity(now: .now)
-        return [
-            RenderVariant("live", label: label, panel: panel),
-            RenderVariant("sample", label: sample.label, panel: AnyView(DiskPanel(item: sample, samplesLive: false))),
-        ]
+        sample.charts = ChartSamples.history
+        return [RenderVariant("live", label: label, panel: panel)]
+            + RenderVariant.eachRange("sample", label: sample.label, panel: DiskPanel(item: sample))
     }
 }
 

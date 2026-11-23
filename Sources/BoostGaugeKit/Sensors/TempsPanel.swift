@@ -9,6 +9,13 @@ struct TempsPanel: View {
         PanelChrome(footer: .app("Activity Monitor…", bundleID: "com.apple.ActivityMonitor")) {
             PanelHeader(title: "Temperatures", subtitle: item.summary.hottest == nil ? nil : "Hottest sensor",
                         bigValue: item.summary.hottest.map(item.text))
+            if settings.isSectionShown(.tempsChart) {
+                MetricChart(title: "Temperature", settings: settings,
+                            sources: [ChartSource("Hottest", item.charts(.tempsHottest), live: item.summary.hottest, convert: convert),
+                                      ChartSource("CPU", item.charts(.tempsCPU), live: item.summary.cpu, convert: convert),
+                                      ChartSource("GPU", item.charts(.tempsGPU), live: item.summary.gpu, convert: convert)],
+                            scale: .temperature, valueText: degrees, accessibilityName: "Temperatures")
+            }
             if anyGroupSectionShown {
                 PanelSection("Sensors") {
                     if shownGroups.isEmpty {
@@ -36,6 +43,16 @@ struct TempsPanel: View {
     }
 
     private var settings: AppSettings { item.ctx.settings }
+
+    /// The chart draws in the unit the rest of the panel shows.
+    private var convert: ((Double) -> Double)? {
+        settings.temperatureUnit == .fahrenheit ? { $0 * 9 / 5 + 32 } : nil
+    }
+
+    private var degrees: (Double) -> String {
+        let suffix = settings.temperatureUnit == .fahrenheit ? "°F" : "°C"
+        return { "\(Int($0.rounded()))\(suffix)" }
+    }
 
     private var shownGroups: [TempGroupReading] {
         item.groups.filter { settings.isSectionShown($0.group.section) }

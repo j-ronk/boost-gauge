@@ -21,9 +21,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        ctx.charts.startSaving()
         ctx.scheduler.start()
         ctx.slots.start()
         ctx.onLaunch?()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // Render runs never loaded or recorded a real day, so they must not overwrite the saved one.
+        guard !RenderMode.isActive else { return }
+        Self.context.charts.save()
     }
 
     /// Launching Boost Gauge again while it runs lands here; Track E uses it to open Settings.

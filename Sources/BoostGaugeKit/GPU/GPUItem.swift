@@ -25,8 +25,6 @@ struct GPUPanelReading: Sendable {
 
 @MainActor @Observable final class GPUModel {
     var utilization: Double?
-    var history = TimeSeries()
-    var refreshSeconds = AppSettings.defaultRefreshSeconds
     var memoryBytes: UInt64?
     var temperature: Double?
     var temperatureUnit = TemperatureUnit.celsius
@@ -39,26 +37,12 @@ struct GPUPanelReading: Sendable {
     var coresText: String { cores.map(String.init) ?? "—" }
 }
 
-enum GPUHistory {
-    /// Splits the buffer wherever readings stopped (sleep), so the chart doesn't draw a line across time nobody measured.
-    static func segments(_ points: [(date: Date, value: Double)], maxGap: TimeInterval) -> [[(date: Date, value: Double)]] {
-        var segments: [[(date: Date, value: Double)]] = []
-        for point in points {
-            if let last = segments.last?.last, point.date.timeIntervalSince(last.date) <= maxGap {
-                segments[segments.count - 1].append(point)
-            } else {
-                segments.append([point])
-            }
-        }
-        return segments
-    }
-}
-
 @MainActor public final class GPUItem: BoostGaugeItem {
     public let id = ItemID.gpu
     let model = GPUModel()
 
     private let settings: AppSettings
+    private let charts: ChartHistory
     private let read: () -> Double?
     private let readPanel: @Sendable () -> GPUPanelReading
     private let readTemperature: () -> Double?
@@ -98,6 +82,7 @@ enum GPUHistory {
          now: @escaping () -> Date = { .now },
          settle: Duration = .zero) {
         settings = ctx.settings
+        charts = ctx.charts
         self.read = read
         self.readPanel = readPanel
         self.readTemperature = readTemperature
@@ -107,7 +92,6 @@ enum GPUHistory {
         self.settle = settle
         watcher = ShownWatcher(settings: ctx.settings, id: .gpu) { [weak self] in
             self?.model.utilization = nil
-            self?.model.history = TimeSeries()
         }
     }
 
@@ -117,7 +101,7 @@ enum GPUHistory {
     }
 
     public var panel: AnyView {
-        AnyView(GPUPanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshPanel() })
+        AnyView(GPUPanel(model: model, settings: settings, charts: charts).refreshing(every: .seconds(3)) { [weak self] in await self?.refreshPanel() })
     }
 
     public func panelDidOpen() {
@@ -183,33 +167,12 @@ enum GPUHistory {
         let value = read()
         // Observable notifies on every write, equal or not; skip no-op writes so the label and panel don't redraw.
         if model.utilization != value { model.utilization = value }
-        if model.refreshSeconds != settings.refreshSeconds { model.refreshSeconds = settings.refreshSeconds }
-        if let value { model.history.append(value, at: now) }
-    }
-
-    /// Ten minutes of everyday GPU use for `--render`: mostly idle, short spikes, a video call, then an export
-    /// that pins it at 100% for the last minute and a half.
-    static func sampleHistory(end: Date) -> TimeSeries {
-        var rng = SampleRandom(seed: 7)
-        // (first two-second step, steps, level)
-        let bursts: [(Int, Int, Double)] = [(18, 3, 38), (47, 2, 61), (80, 6, 28), (121, 4, 72), (150, 25, 22), (196, 2, 45),
-                                            (230, 3, 55)]
-        var series = TimeSeries()
-        for i in 0..<300 {
-            var value = 3 + rng.uniform(0...6)
-            if let b = bursts.first(where: { ($0.0..<($0.0 + $0.1)).contains(i) }) {
-                value = b.2 * (1 + rng.uniform(-0.15...0.15))
-            }
-            if i >= 255 { value = i == 299 ? 100 : rng.uniform(91...100) }
-            series.append(value.rounded(), at: end.addingTimeInterval(Double(i - 299) * 2))
-        }
-        return series
+        charts.record(.gpu, value, at: now)
     }
 
     public func renderVariants() async -> [RenderVariant] {
         let busy = GPUModel()
         busy.utilization = 100
-        for p in Self.sampleHistory(end: .now).points { busy.history.append(p.value, at: p.date) }
         busy.memoryBytes = 2_576_980_378
         busy.temperature = 61.4
         busy.cores = 32
@@ -222,12 +185,12 @@ enum GPUHistory {
         let empty = GPUModel()
         empty.topApps = []
         await refreshPanel()
-        return [
-            RenderVariant("live", label: label, panel: panel),
-            RenderVariant("sample", label: AnyView(StackedLabel(caption: "GPU", value: "100%", widest: "100%")),
-                          panel: AnyView(GPUPanel(model: busy, settings: settings))),
+        return [RenderVariant("live", label: label, panel: panel)]
+            + RenderVariant.eachRange("sample", label: AnyView(StackedLabel(caption: "GPU", value: "100%", widest: "100%")),
+                                      panel: GPUPanel(model: busy, settings: settings, charts: ChartSamples.history))
+            + [
             RenderVariant("empty", label: AnyView(StackedLabel(caption: "GPU", value: "—", widest: "100%")),
-                          panel: AnyView(GPUPanel(model: empty, settings: settings))),
+                          panel: AnyView(GPUPanel(model: empty, settings: settings, charts: ChartHistory()))),
         ]
     }
 }

@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 enum BatteryFormat {
@@ -44,7 +43,7 @@ struct BatteryPanel: View {
             if settings.isSectionShown(.batteryHistory) {
                 HistorySection(model: model)
             }
-            PowerSection(snapshot: snapshot, fans: model.fans, history: model.powerHistory,
+            PowerSection(snapshot: snapshot, fans: model.fans, charts: model.powerCharts ?? ctx.charts, settings: settings,
                          showsRows: settings.isSectionShown(.batteryPower), showsChart: settings.isSectionShown(.batteryPowerChart))
             if settings.isSectionShown(.batteryHealth) {
                 PanelSection("Health") {
@@ -61,13 +60,33 @@ struct BatteryPanel: View {
     }
 }
 
+/// Charge from the history file and pmset's log, so it covers time the app wasn't running. It keeps its own
+/// 24 Hours / 10 Days in the spot where every other chart has the shared range.
 struct HistorySection: View {
     @Bindable var model: BatteryModel
+    @State private var hover: TimeInterval?
 
     var body: some View {
-        PanelSection("History") {
-            HistoryRangePicker(selection: $model.historyRange)
-            HistoryChart(segments: model.historySegments, range: model.historyRange, now: model.historyNow)
+        let range = model.historyRange
+        let now = model.historyNow
+        let end = now.timeIntervalSinceReferenceDate
+        VStack(alignment: .leading, spacing: 6) {
+            ChartHeading(title: "Charge") {
+                HistoryRangePicker(selection: $model.historyRange)
+            }
+            TimeChart(lines: [ChartLine(name: "Charge", runs: Self.runs(model.historySegments))],
+                      start: end - range.span, end: end, scale: .percent,
+                      ticks: ChartTime.ticks(from: now.addingTimeInterval(-range.span), to: now),
+                      gap: range.bucket * 3, valueText: Format.percent, hover: $hover)
+                .accessibilityElement()
+                .accessibilityLabel(range == .day ? "Charge over the last 24 hours" : "Charge over the last 10 days")
+        }
+    }
+
+    /// The store already splits its samples at sleep and quit gaps.
+    static func runs(_ segments: [[ChargeSample]]) -> [[ChartPoint]] {
+        segments.map { segment in
+            segment.map { ChartPoint(t: $0.date.timeIntervalSinceReferenceDate, avg: Float($0.percent), peak: Float($0.percent)) }
         }
     }
 }
@@ -76,75 +95,10 @@ struct HistoryRangePicker: View {
     @Binding var selection: HistoryRange
 
     var body: some View {
-        CapsulePicker(title: "History Range", selection: Binding(get: { selection }, set: { if let r = $0 { selection = r } }),
+        CapsulePicker(title: "Charge Range", selection: Binding(get: { selection }, set: { if let r = $0 { selection = r } }),
                       options: HistoryRange.allCases.map { .init(value: $0, title: $0.title) },
-                      height: 20, fillsWidth: false)
-            .font(.callout)
-    }
-}
-
-struct HistoryChart: View {
-    let segments: [[ChargeSample]]
-    let range: HistoryRange
-    let now: Date
-
-    private struct Point: Identifiable {
-        let id: Int
-        let segment: Int
-        let isolated: Bool
-        let sample: ChargeSample
-    }
-
-    // Positional ids: a seeded and a live sample can share a timestamp.
-    private var points: [Point] {
-        segments.enumerated()
-            .flatMap { i, segment in segment.map { (i, segment.count == 1, $0) } }
-            .enumerated()
-            .map { Point(id: $0.offset, segment: $0.element.0, isolated: $0.element.1, sample: $0.element.2) }
-    }
-
-    var body: some View {
-        Chart(points) { p in
-            // One series per segment, so a sleep gap breaks the line instead of drawing straight across it.
-            AreaMark(x: .value("Time", p.sample.date),
-                     yStart: .value("Base", 0),
-                     yEnd: .value("Charge", p.sample.percent),
-                     series: .value("Segment", p.segment))
-                .foregroundStyle(.tint.opacity(0.2))
-                .interpolationMethod(.monotone)
-            LineMark(x: .value("Time", p.sample.date), y: .value("Charge", p.sample.percent),
-                     series: .value("Segment", p.segment))
-                .interpolationMethod(.monotone)
-            // A lone reading between two gaps has no line to sit on, so it would otherwise vanish.
-            if p.isolated {
-                PointMark(x: .value("Time", p.sample.date), y: .value("Charge", p.sample.percent))
-                    .symbolSize(12)
-            }
-        }
-        .chartYScale(domain: 0...100)
-        .chartXScale(domain: now.addingTimeInterval(-range.span)...now)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: [0, 50, 100]) { v in
-                AxisGridLine()
-                AxisValueLabel { if let p = v.as(Int.self) { Text("\(p)%") } }
-            }
-        }
-        .chartXAxis {
-            switch range {
-            case .day:
-                AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
-                    AxisGridLine()
-                    AxisValueLabel(format: .dateTime.hour())
-                }
-            case .tenDays:
-                AxisMarks(values: .stride(by: .day, count: 3)) { _ in
-                    AxisGridLine()
-                    AxisValueLabel(format: .dateTime.day().month(.abbreviated))
-                }
-            }
-        }
-        .frame(height: 70)
-        .accessibilityLabel(range == .day ? "Charge over the last 24 hours" : "Charge over the last 10 days")
+                      height: 20, fillsWidth: false, segmentPadding: 8)
+            .font(.subheadline)
     }
 }
 

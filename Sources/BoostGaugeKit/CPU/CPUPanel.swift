@@ -4,10 +4,15 @@ import SwiftUI
 struct CPUPanel: View {
     let model: CPUModel
     let settings: AppSettings
+    let charts: ChartHistory
 
     var body: some View {
         PanelChrome(footer: .activityMonitor) {
             PanelHeader(title: "CPU", subtitle: nil, bigValue: model.total.map(Format.percent) ?? "—")
+            if settings.isSectionShown(.cpuChart) {
+                MetricChart(title: "Usage", settings: settings, sources: [ChartSource("CPU", charts(.cpu), live: model.total)],
+                            scale: .percent, valueText: Format.percent, accessibilityName: "CPU usage")
+            }
             if settings.isSectionShown(.cpuCores) { cores }
             if settings.isSectionShown(.cpuDetails) {
                 PanelSection("Details") {

@@ -47,6 +47,7 @@ enum CPUCores {
     let model = CPUModel()
 
     private let settings: AppSettings
+    private let charts: ChartHistory
     private let readTicks: () -> [CoreTicks]?
     private let readTemperatures: () -> TempSummary
     private let kinds: [CoreKind]
@@ -73,6 +74,7 @@ enum CPUCores {
          readTemperatures: @escaping () -> TempSummary = { TempSummary() },
          kinds: [CoreKind] = [], settleDelay: Duration? = nil) {
         settings = ctx.settings
+        charts = ctx.charts
         self.readTicks = readTicks
         self.readTemperatures = readTemperatures
         self.kinds = kinds
@@ -88,7 +90,7 @@ enum CPUCores {
     }
 
     public var panel: AnyView {
-        AnyView(CPUPanel(model: model, settings: settings).refreshing(every: .seconds(3)) { [weak self] in
+        AnyView(CPUPanel(model: model, settings: settings, charts: charts).refreshing(every: .seconds(3)) { [weak self] in
             self?.refreshDetails()
             await self?.refreshTop()
         })
@@ -117,12 +119,12 @@ enum CPUCores {
         }
         lastSample = now
         let hadBaseline = previous != nil
-        sample()
+        sample(now: now)
         guard !hadBaseline, previous != nil, let settleDelay else { return }
         settleTask = Task { [weak self] in
             try? await Task.sleep(for: settleDelay)
             guard !Task.isCancelled, let self, self.model.total == nil, self.previous != nil else { return }
-            self.sample()
+            self.sample(now: .now)
         }
     }
 
@@ -141,10 +143,10 @@ enum CPUCores {
     public func renderVariants() async -> [RenderVariant] {
         refreshDetails()
         await refreshTop()
-        return [
-            RenderVariant("live", label: label, panel: panel),
-            RenderVariant("sample", label: AnyView(StackedLabel(caption: "CPU", value: "23%", widest: "100%")),
-                          panel: AnyView(CPUPanel(model: Self.sampleModel(), settings: settings))),
+        return [RenderVariant("live", label: label, panel: panel)]
+            + RenderVariant.eachRange("sample", label: AnyView(StackedLabel(caption: "CPU", value: "23%", widest: "100%")),
+                                      panel: CPUPanel(model: Self.sampleModel(), settings: settings, charts: ChartSamples.history))
+            + [
             RenderVariant("low", label: AnyView(StackedLabel(caption: "CPU", value: "7%", widest: "100%")), panel: nil),
             RenderVariant("full", label: AnyView(StackedLabel(caption: "CPU", value: "100%", widest: "100%")), panel: nil),
         ]
@@ -168,11 +170,12 @@ enum CPUCores {
         return m
     }
 
-    private func sample() {
+    private func sample(now: Date) {
         guard let current = readTicks() else { return }
         if let previous, previous.count == current.count {
             let usage = CPULoad.usage(previous: previous, current: current)
             model.total = usage.total
+            charts.record(.cpu, usage.total, at: now)
             model.cores = usage.perCore.enumerated().map { i, percent in
                 CoreLoad(id: i, percent: percent, kind: i < kinds.count ? kinds[i] : .performance)
             }

@@ -34,10 +34,14 @@ public enum TempGroup: String, CaseIterable, Sendable {
 public struct TempSensor: Equatable, Sendable {
     public var name: String
     public var celsius: Double
+    /// False for a reading the menu bar's figure for the group leaves out (the battery's HID gas gauge), so the
+    /// group row and the menu bar agree.
+    public var inAverage: Bool
 
-    public init(_ name: String, _ celsius: Double) {
+    public init(_ name: String, _ celsius: Double, inAverage: Bool = true) {
         self.name = name
         self.celsius = celsius
+        self.inAverage = inAverage
     }
 }
 
@@ -54,7 +58,9 @@ public struct TempGroupReading: Equatable, Sendable {
     public var hottest: TempSensor? { sensors.max { $0.celsius < $1.celsius } }
 
     public var average: Double? {
-        sensors.isEmpty ? nil : sensors.map(\.celsius).reduce(0, +) / Double(sensors.count)
+        let counted = sensors.filter(\.inAverage)
+        let values = (counted.isEmpty ? sensors : counted).map(\.celsius)
+        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
 }
 
@@ -269,7 +275,7 @@ public enum TempCatalog {
         for (i, n) in nand.keys.sorted().enumerated() {
             out.append((.ssd, TempSensor(nand.count == 1 ? "SSD" : "SSD channel \(i + 1)", nand[n]!)))
         }
-        if let gauge { out.append((.battery, TempSensor("Gas gauge", gauge))) }
+        if let gauge { out.append((.battery, TempSensor("Gas gauge", gauge, inAverage: false))) }
         for (i, n) in dies.keys.sorted().enumerated() {
             out.append((.powerManager, TempSensor("Die sensor \(i + 1)", dies[n]!)))
         }

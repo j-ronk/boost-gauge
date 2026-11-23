@@ -13,6 +13,8 @@ import SwiftUI
     private(set) var hasReadGroups = false
     /// Only groups the user has opened or closed; the rest follow `isExpandedByDefault`.
     private var expansion: [TempGroup: Bool]
+    /// Where the chart's temperatures are recorded; render samples swap in their own.
+    @ObservationIgnored var charts: ChartHistory
     @ObservationIgnored private let readTemperatures: () -> [(name: String, celsius: Double)]
     @ObservationIgnored private let readFans: () -> [FanReading]
     @ObservationIgnored private let readGroups: (Set<TempGroup>) -> [TempGroupReading]
@@ -33,6 +35,7 @@ import SwiftUI
          readFans: @escaping () -> [FanReading],
          readGroups: @escaping (Set<TempGroup>) -> [TempGroupReading] = { _ in [] }) {
         self.ctx = ctx
+        charts = ctx.charts
         self.readTemperatures = readTemperatures
         self.readFans = readFans
         self.readGroups = readGroups
@@ -45,6 +48,9 @@ import SwiftUI
 
     public func tick(now: Date) {
         summary = SensorSummary.summarize(readTemperatures())
+        charts.record(.tempsHottest, summary.hottest, at: now)
+        charts.record(.tempsCPU, summary.cpu, at: now)
+        charts.record(.tempsGPU, summary.gpu, at: now)
     }
 
     /// Fans and the per-sensor groups only matter with the panel open, so they're read here rather than on the
@@ -99,10 +105,13 @@ import SwiftUI
             RenderVariant("live-expanded-all", label: label,
                           panel: AnyView(TempsPanel(item: staged(nil, fans: nil, expanded: true),
                                                     maxSensorsHeight: .infinity))),
-            variant("sample", staged(Self.sample, fans: Self.sampleFans, expanded: nil)),
             variant("sample-expanded", staged(Self.sample, fans: Self.sampleFans, expanded: true)),
             variant("fanless", fanless),
-        ]
+        ] + {
+            let sample = staged(Self.sample, fans: Self.sampleFans, expanded: nil)
+            sample.charts = ChartSamples.history
+            return RenderVariant.eachRange("sample", label: sample.label, panel: sample.panel)
+        }()
     }
 
     /// A copy for `--render` that never writes the stored expansion: nil groups or fans keep this Mac's live
@@ -137,7 +146,7 @@ import SwiftUI
             TempGroupReading(.memory, [49.7, 50.8, 47.5, 47.6].enumerated().map { TempSensor("Memory \($0 + 1)", $1) }),
             TempGroupReading(.ssd, [TempSensor("SSD", 38.6)]),
             TempGroupReading(.battery, [TempSensor("Battery 1", 34.8), TempSensor("Battery 2", 35.2),
-                                        TempSensor("Gas gauge", 35.0)]),
+                                        TempSensor("Gas gauge", 35.0, inAverage: false)]),
             TempGroupReading(.powerManager, [44.7, 44.8, 44.5, 44.7, 44.9, 44.4, 44.4, 44.9, 44.6, 44.3, 44.8]
                 .enumerated().map { TempSensor("Die sensor \($0 + 1)", $1) }),
             TempGroupReading(.airflow, [TempSensor("Left", 43.7), TempSensor("Right", 43.4)]),

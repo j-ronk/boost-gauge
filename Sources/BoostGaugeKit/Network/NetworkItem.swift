@@ -6,9 +6,9 @@ import SwiftUI
     public let id: ItemID = .network
     let ctx: AppContext
     private(set) var rate: (up: Double, down: Double)?
-    private(set) var up = TimeSeries()
-    private(set) var down = TimeSeries()
     private(set) var connection: NetworkConnection?
+    /// Where the speeds are recorded; render samples swap in their own.
+    @ObservationIgnored var charts: ChartHistory
     @ObservationIgnored private var previous: (counters: [String: IfCounters], at: Date)?
     @ObservationIgnored private let snapshot: () -> [String: IfCounters]
     @ObservationIgnored private let readConnection: () -> NetworkConnection?
@@ -20,6 +20,7 @@ import SwiftUI
     init(_ ctx: AppContext, snapshot: @escaping () -> [String: IfCounters],
          readConnection: @escaping () -> NetworkConnection? = { nil }) {
         self.ctx = ctx
+        charts = ctx.charts
         self.snapshot = snapshot
         self.readConnection = readConnection
     }
@@ -37,8 +38,8 @@ import SwiftUI
         guard elapsed > 0, elapsed <= staleAfter else { rate = nil; return }
         let r = NetworkCounters.rates(previous: previous.counters, current: current, elapsed: elapsed)
         rate = r
-        up.append(r.up, at: now)
-        down.append(r.down, at: now)
+        charts.record(.networkDown, r.down, at: now)
+        charts.record(.networkUp, r.up, at: now)
     }
 
     private var staleAfter: TimeInterval { max(Double(ctx.settings.refreshSeconds) * 2.5, 5) }
@@ -57,12 +58,14 @@ import SwiftUI
     var labelWidest: String { unit == .bits ? "↓ 999Mb" : "↓ 999M" }
 
     public func renderVariants() async -> [RenderVariant] {
-        [RenderVariant("live", label: label, panel: panel), Self.sample(ctx).variant]
+        let sample = Self.sample(ctx)
+        return [RenderVariant("live", label: label, panel: panel)]
+            + RenderVariant.eachRange("sample", label: sample.label, panel: sample.panel)
     }
 
-    /// Ten minutes of everyday traffic, so the chart's shape and legend can be checked; live renders have two points.
-    /// Background trickle, a few page loads, one big download and one upload; seeded so every render matches.
-    private static func sample(_ ctx: AppContext) -> (item: NetworkItem, variant: RenderVariant) {
+    /// Everyday traffic for the legend and header: background trickle, a few page loads, one big download and one
+    /// upload; seeded so every render matches. The chart draws the shared render sample history.
+    private static func sample(_ ctx: AppContext) -> NetworkItem {
         var received: UInt64 = 0, sent: UInt64 = 0, step = 0
         var rng = SampleRandom(seed: 11)
         let pageLoads: Set<Int> = [22, 23, 64, 118, 119, 120, 205, 262, 263]
@@ -76,11 +79,13 @@ import SwiftUI
             sent += UInt64(up)
             return ["en0": IfCounters(ibytes: received, obytes: sent)]
         }, readConnection: { NetworkConnection(service: "Wi-Fi", interface: "en0", address: "192.168.1.20") })
+        item.charts = ChartHistory()
         let end = Date.now
         for i in stride(from: 300, through: 0, by: -1) {
             item.tick(now: end.addingTimeInterval(TimeInterval(-2 * i)))
         }
-        return (item, RenderVariant("sample", label: item.label, panel: item.panel))
+        item.charts = ChartSamples.history
+        return item
     }
 }
 

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// An item page's live preview: the item's menu bar label above its real panel, scaled down when the panel is
@@ -5,6 +6,9 @@ import SwiftUI
 struct ItemPreview: View {
     let model: SettingsModel
     let id: ItemID
+    /// False once the Settings window closes. SwiftUI keeps that window's views alive and may not call onDisappear,
+    /// so the window's own close notice stops the preview's ticking and hands its panel presence back.
+    @State private var windowOpen = true
 
     var body: some View {
         if let item = model.item(id) {
@@ -22,10 +26,56 @@ struct ItemPreview: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Preview")
-            .onAppear { model.previewOpened(id) }
-            .onDisappear { model.previewClosed(id) }
-            .task(id: id) { await model.samplePreview(id) }
+            .background(WindowOpenReader { windowOpen = $0 })
+            .task(id: PreviewKey(id: id, windowOpen: windowOpen)) {
+                guard windowOpen else { return }
+                await model.runPreview(id)
+            }
         }
+    }
+}
+
+private struct PreviewKey: Equatable {
+    let id: ItemID
+    let windowOpen: Bool
+}
+
+/// Reports false when its window closes and true when it's back on screen.
+struct WindowOpenReader: NSViewRepresentable {
+    let onChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> Probe { Probe(onChange: onChange) }
+    func updateNSView(_ nsView: Probe, context: Context) { nsView.onChange = onChange }
+
+    final class Probe: NSView {
+        var onChange: (Bool) -> Void
+        private var observers: [NSObjectProtocol] = []
+
+        init(onChange: @escaping (Bool) -> Void) {
+            self.onChange = onChange
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            guard let window else { return }
+            let center = NotificationCenter.default
+            observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) {
+                [weak self] _ in MainActor.assumeIsolated { self?.onChange(false) }
+            })
+            observers.append(center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window,
+                                                queue: .main) { [weak self, weak window] _ in
+                MainActor.assumeIsolated {
+                    if window?.occlusionState.contains(.visible) == true { self?.onChange(true) }
+                }
+            })
+        }
+
+        deinit { observers.forEach(NotificationCenter.default.removeObserver) }
     }
 }
 

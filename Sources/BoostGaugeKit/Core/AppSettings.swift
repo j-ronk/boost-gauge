@@ -27,6 +27,7 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
     private var hiddenOverviewMetrics: Set<OverviewMetric>
     private var storedGlyphOrder: [OverviewMetric]
     private var glyphShown: Set<OverviewMetric>
+    private var storedChartRange: ChartRange
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -49,6 +50,7 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         storedGlyphOrder = glyphOrder
         let saved = Set((defaults.stringArray(forKey: Keys.overviewGlyphShown) ?? []).compactMap(OverviewMetric.init))
             .intersection(OverviewMetric.glyphChoices)
+        storedChartRange = defaults.string(forKey: Keys.chartRange).flatMap(ChartRange.init) ?? .tenMinutes
         glyphShown = Self.capped(saved.isEmpty ? Set(OverviewMetric.defaultGlyph) : saved, in: glyphOrder)
     }
 
@@ -125,6 +127,16 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
             guard newValue != storedOverviewStyle else { return }
             storedOverviewStyle = newValue
             defaults.set(newValue.rawValue, forKey: Keys.overviewStyle)
+        }
+    }
+
+    /// One range for every panel's chart, remembered across launches.
+    public var chartRange: ChartRange {
+        get { storedChartRange }
+        set {
+            guard newValue != storedChartRange else { return }
+            storedChartRange = newValue
+            defaults.set(newValue.rawValue, forKey: Keys.chartRange)
         }
     }
 
@@ -217,6 +229,7 @@ public enum OverviewStyle: String, CaseIterable, Sendable { case bars, list, til
         static let settingsPane = "settings.pane"
         static let overviewGlyphOrder = "overview.glyph.order"
         static let overviewGlyphShown = "overview.glyph.shown"
+        static let chartRange = "chart.range"
     }
 
     private static func shownKey(_ id: ItemID) -> String { "item.\(id.rawValue).shown" }

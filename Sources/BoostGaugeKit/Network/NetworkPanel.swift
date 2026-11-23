@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 struct NetworkPanel: View {
@@ -8,16 +7,12 @@ struct NetworkPanel: View {
         PanelChrome(footer: .url("Network Settings…",
                                  URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")!)) {
             PanelHeader(title: "Network", subtitle: item.connection?.service ?? "Not Connected", bigValue: nil)
-            if settings.isSectionShown(.networkSpeed) {
-                PanelSection("Speed") {
-                    StatRow("Up", item.rate.map { NetworkCounters.rateText($0.up, unit: item.unit) } ?? "—")
-                    StatRow("Down", item.rate.map { NetworkCounters.rateText($0.down, unit: item.unit) } ?? "—")
-                }
-            }
             if settings.isSectionShown(.networkChart) {
-                PanelSection("Last 10 Minutes") {
-                    chart
-                }
+                MetricChart(title: "Speed", settings: settings,
+                            sources: [ChartSource("Down", item.charts(.networkDown), live: item.rate?.down),
+                                      ChartSource("Up", item.charts(.networkUp), live: item.rate?.up)],
+                            scale: .upward(floor: 10_000, label: axisLabel),
+                            valueText: { NetworkCounters.rateText($0, unit: unit) }, accessibilityName: "Network speed")
             }
             if settings.isSectionShown(.networkConnection), let connection = item.connection {
                 PanelSection("Connection") {
@@ -33,43 +28,10 @@ struct NetworkPanel: View {
 
     private var settings: AppSettings { item.ctx.settings }
 
-    private struct Point: Identifiable {
-        let date: Date
-        let value: Double
-        let series: String
-        var id: String { "\(series)-\(date.timeIntervalSinceReferenceDate)" }
-    }
+    private var unit: NetworkUnit { item.unit }
 
-    private var points: [Point] {
-        item.down.points.map { Point(date: $0.date, value: $0.value, series: "Down") }
-            + item.up.points.map { Point(date: $0.date, value: $0.value, series: "Up") }
-    }
-
-    /// A floor of 10 KB/s keeps an idle link from producing an axis of repeated "1K" labels.
-    private var yMax: Double {
-        max(10_000, (points.map(\.value).max() ?? 0) * 1.1)
-    }
-
-    private var chart: some View {
-        Chart(points) { p in
-            LineMark(x: .value("Time", p.date), y: .value("Rate", p.value))
-                .foregroundStyle(by: .value("Direction", p.series))
-                .lineStyle(by: .value("Direction", p.series))
-        }
-        // Colour alone never tells the lines apart: Up is also dashed, and the legend names both.
-        .chartForegroundStyleScale(["Down": Color.accentColor, "Up": Color.secondary])
-        .chartLineStyleScale(["Down": StrokeStyle(lineWidth: 1.5), "Up": StrokeStyle(lineWidth: 1.5, dash: [3, 2])])
-        .chartYScale(domain: 0...yMax)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let v = value.as(Double.self) { Text(NetworkCounters.compact(v, unit: item.unit)) }
-                }
-            }
-        }
-        .chartXAxis(.hidden)
-        .chartLegend(position: .bottom, alignment: .leading)
-        .frame(height: 90)
+    private var axisLabel: (Double) -> String {
+        let unit = unit
+        return { $0 == 0 ? "0" : NetworkCounters.compact($0, unit: unit) }
     }
 }

@@ -3,11 +3,12 @@ import SwiftUI
 @MainActor @Observable final class PowerModel {
     var snapshot: BatterySnapshot?
     var fans: [FanReading] = []
-    var history = PowerHistory()
-    init(snapshot: BatterySnapshot? = nil, fans: [FanReading] = [], history: PowerHistory = PowerHistory()) {
+    /// Render samples carry their own chart history; nil draws the live one.
+    var charts: ChartHistory?
+    init(snapshot: BatterySnapshot? = nil, fans: [FanReading] = [], charts: ChartHistory? = nil) {
         self.snapshot = snapshot
         self.fans = fans
-        self.history = history
+        self.charts = charts
     }
 }
 
@@ -16,6 +17,7 @@ import SwiftUI
     public let id = ItemID.power
     private let model = PowerModel()
     private let settings: AppSettings
+    private let charts: ChartHistory
     private let readFans: () -> [FanReading]
     private var panelOpen = false
 
@@ -26,16 +28,17 @@ import SwiftUI
 
     init(_ ctx: AppContext, readFans: @escaping () -> [FanReading]) {
         settings = ctx.settings
+        charts = ctx.charts
         self.readFans = readFans
     }
 
     public var label: AnyView { AnyView(PowerLabel(model: model)) }
-    public var panel: AnyView { AnyView(PowerPanel(model: model, settings: settings)) }
+    public var panel: AnyView { AnyView(PowerPanel(model: model, settings: settings, charts: charts)) }
 
     public func tick(now: Date) {
         if let s = BatteryReader.read() {
             model.snapshot = s
-            model.history.add(s, at: now)
+            charts.recordPower(s, at: now)
         }
         if panelOpen { readFansIfShown() }
     }
@@ -59,8 +62,12 @@ import SwiftUI
     public func renderVariants() async -> [RenderVariant] {
         var variants = [RenderVariant("live", label: label, panel: panel)]
         for sample in BatterySamples.all {
-            let m = PowerModel(snapshot: sample.snapshot, fans: BatterySamples.fans, history: BatterySamples.powerHistory(sample.snapshot))
-            variants.append(RenderVariant(sample.name, label: AnyView(PowerLabel(model: m)), panel: AnyView(PowerPanel(model: m, settings: settings))))
+            let m = PowerModel(snapshot: sample.snapshot, fans: BatterySamples.fans, charts: BatterySamples.powerHistory(sample.snapshot))
+            let panel = PowerPanel(model: m, settings: settings, charts: charts)
+            // One sample at every range; the rest at 10 Min.
+            variants += sample.name == BatterySamples.all[0].name
+                ? RenderVariant.eachRange(sample.name, label: AnyView(PowerLabel(model: m)), panel: panel)
+                : [RenderVariant(sample.name, label: AnyView(PowerLabel(model: m)), panel: AnyView(panel.environment(\.chartRangeOverride, .tenMinutes)))]
         }
         return variants
     }
@@ -76,9 +83,10 @@ struct PowerLabel: View {
 struct PowerPanel: View {
     let model: PowerModel
     let settings: AppSettings
+    let charts: ChartHistory
     var body: some View {
         PanelChrome(footer: .batterySettings) {
-            PowerSection(snapshot: model.snapshot, fans: model.fans, history: model.history,
+            PowerSection(snapshot: model.snapshot, fans: model.fans, charts: model.charts ?? charts, settings: settings,
                          showsRows: settings.isSectionShown(.powerPower), showsChart: settings.isSectionShown(.powerChart))
         }
     }

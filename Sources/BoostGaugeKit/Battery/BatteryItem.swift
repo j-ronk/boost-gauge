@@ -79,7 +79,8 @@ struct EnergyUser: Identifiable {
     var usersLoaded = false
     var systemHealthPercent: Int?
     var fans: [FanReading] = []
-    var powerHistory = PowerHistory()
+    /// Render samples carry their own chart history; nil draws the live one.
+    var powerCharts: ChartHistory?
     var historyRange: HistoryRange = .day {
         // Render samples carry a history pinned to their own clock; reloading against the real one would empty the chart.
         didSet { reloadHistory(now: history == nil ? historyNow : .now) }
@@ -174,7 +175,7 @@ struct EnergyUser: Identifiable {
     private func read(now: Date, fresh: Bool) {
         if let s = BatteryReader.read(now: now, fresh: fresh) {
             model.snapshot = s
-            model.powerHistory.add(s, at: now)
+            ctx.charts.recordPower(s, at: now)
         }
     }
 
@@ -294,9 +295,18 @@ struct EnergyUser: Identifiable {
         var variants = [RenderVariant("live", label: label, panel: panel)]
         for sample in BatterySamples.all {
             let m = BatterySamples.model(sample)
-            variants.append(RenderVariant(sample.name, label: AnyView(BatteryLabel(model: m, settings: ctx.settings)),
-                                          panel: AnyView(BatteryPanel(model: m, ctx: ctx))))
+            let label = AnyView(BatteryLabel(model: m, settings: ctx.settings))
+            let panel = BatteryPanel(model: m, ctx: ctx)
+            // One sample at every range; the rest at 10 Min.
+            variants += sample.name == BatterySamples.all[0].name
+                ? RenderVariant.eachRange(sample.name, label: label, panel: panel)
+                : [RenderVariant(sample.name, label: label, panel: AnyView(panel.environment(\.chartRangeOverride, .tenMinutes)))]
         }
+        // Charge's own range, which the shared one doesn't move.
+        let tenDays = BatterySamples.model(BatterySamples.all[0])
+        tenDays.historyRange = .tenDays
+        variants.append(RenderVariant("\(BatterySamples.all[0].name)-10d", label: AnyView(BatteryLabel(model: tenDays, settings: ctx.settings)),
+                                      panel: AnyView(BatteryPanel(model: tenDays, ctx: ctx).environment(\.chartRangeOverride, .tenMinutes))))
         variants.append(RenderVariant("levels", label: AnyView(BatterySamples.LevelStrip()), panel: nil))
         variants.append(RenderVariant("levels-no-percent", label: AnyView(BatterySamples.LevelStrip(showPercentage: false)), panel: nil))
         variants.append(RenderVariant("levels-low-power", label: AnyView(BatterySamples.LevelStrip(lowPower: true)), panel: nil))

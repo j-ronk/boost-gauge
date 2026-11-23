@@ -12,8 +12,14 @@ enum PowerRows {
         var rows: [PowerRow] = []
         if let load = s.systemLoadW { rows.append(PowerRow(label: "System", value: Format.watts(load))) }
         rows.append(PowerRow(label: "Battery", value: Format.signedWatts(s.batteryW)))
-        if s.onAC, let adapter = adapterValue(s) { rows.append(PowerRow(label: "Adapter", value: adapter)) }
+        rows += detailRows(s)
         return rows
+    }
+
+    /// What's left once System and Battery sit in the chart's legend: the adapter, while plugged in.
+    static func detailRows(_ s: BatterySnapshot) -> [PowerRow] {
+        guard s.onAC, let adapter = adapterValue(s) else { return [] }
+        return [PowerRow(label: "Adapter", value: adapter)]
     }
 
     /// One row per fan; a fanless Mac has none, so the section shows nothing extra.
@@ -38,25 +44,40 @@ enum PowerRows {
     }
 }
 
+/// The Power chart (System and Battery watts, their live values in the legend), then Details: the adapter and fans.
 struct PowerSection: View {
     let snapshot: BatterySnapshot?
     var fans: [FanReading] = []
-    var history = PowerHistory()
+    let charts: ChartHistory
+    let settings: AppSettings
     var showsRows = true
     var showsChart = true
 
     var body: some View {
-        if showsRows {
-            PanelSection("Power") {
-                if let snapshot {
-                    ForEach(PowerRows.rows(snapshot)) { StatRow($0.label, $0.value) }
-                }
-                ForEach(PowerRows.fanRows(fans)) { StatRow($0.label, $0.value) }
+        if showsChart {
+            MetricChart(title: "Power", settings: settings,
+                        sources: [ChartSource("System", charts(.powerSystem), live: snapshot?.systemLoadW),
+                                  ChartSource("Battery", charts(.powerBattery), live: snapshot.map { abs($0.batteryW) },
+                                              liveText: snapshot.map { Format.signedWatts($0.batteryW) })],
+                        scale: .upward(floor: 20, label: { "\(Int($0.rounded()))W" }),
+                        valueText: Format.watts, accessibilityName: "Power")
+        }
+        let rows = (snapshot.map(PowerRows.detailRows) ?? []) + PowerRows.fanRows(fans)
+        if showsRows, !rows.isEmpty {
+            PanelSection("Details") {
+                ForEach(rows) { StatRow($0.label, $0.value) }
             }
         }
-        if showsChart, history.system.points.count > 1 {
-            PanelSection("Last 10 Minutes") { PowerChart(history: history) }
-        }
+    }
+}
+
+extension ChartHistory {
+    /// Battery and Power share one beat, so both record into the same two series; the second write of a beat is
+    /// dropped as a repeat.
+    func recordPower(_ s: BatterySnapshot, at date: Date) {
+        guard let load = s.systemLoadW, load.isFinite else { return }
+        record(.powerSystem, load, at: date)
+        record(.powerBattery, abs(s.batteryW), at: date)
     }
 }
 

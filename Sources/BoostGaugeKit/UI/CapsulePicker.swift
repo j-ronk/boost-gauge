@@ -18,6 +18,8 @@ struct CapsulePicker<Value: Hashable>: View {
     var height: CGFloat = 24
     /// Equal-width segments across the row, or segments that hug their titles.
     var fillsWidth = true
+    /// Inset of each title when segments hug their titles.
+    var segmentPadding: CGFloat = 10
 
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) private var scheme
@@ -65,7 +67,7 @@ struct CapsulePicker<Value: Hashable>: View {
                     .lineLimit(1)
                     .foregroundStyle(tinted ? AnyShapeStyle(.black.opacity(0.85)) : AnyShapeStyle(.primary))
             }
-            .padding(.horizontal, fillsWidth ? 4 : 10)
+            .padding(.horizontal, fillsWidth ? 4 : segmentPadding)
             .frame(maxWidth: fillsWidth ? .infinity : nil, maxHeight: .infinity)
             .background {
                 if selected {

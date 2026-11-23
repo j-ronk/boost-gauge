@@ -45,6 +45,15 @@ enum MemoryPressure: String {
         }
     }
 
+    /// How hard the system is pressed for memory, 0 to 100: the kernel's free level turned around, the figure
+    /// pressure graphs plot.
+    static func percent() -> Double? {
+        var level: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.memorystatus_level", &level, &size, nil, 0) == 0, (0...100).contains(level) else { return nil }
+        return Double(100 - level)
+    }
+
     static func read() -> MemoryPressure {
         var level: Int32 = 0
         var size = MemoryLayout<Int32>.size

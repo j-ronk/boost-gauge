@@ -44,9 +44,10 @@ import SwiftUI
     /// One spinning and one idle fan, so renders show both the rpm and "Off" forms.
     static let fans = [FanReading(index: 0, rpm: 3454, min: 1200, max: 6000), FanReading(index: 1, rpm: 0, min: 1200, max: 6000)]
 
-    /// Ten minutes of step-like load: plateaus, a burst, a brief dip, a little noise, ending on the sample's reading.
-    /// A charging sample was plugged in five minutes ago, so before that the battery line tracks the system line.
-    static func powerHistory(_ s: BatterySnapshot, now: Date = .now) -> PowerHistory {
+    /// A day of everyday load, then ten minutes of step-like load: plateaus, a burst, a brief dip, a little noise,
+    /// ending on the sample's reading. A charging sample was plugged in five minutes ago, so before that the battery
+    /// line tracks the system line.
+    static func powerHistory(_ s: BatterySnapshot, now: Date = .now) -> ChartHistory {
         var rng = SampleRandom(seed: UInt64(s.percent))
         let load = s.systemLoadW ?? 10
         let volts = Double(s.voltage_mV) / 1000
@@ -57,12 +58,17 @@ import SwiftUI
         let multiples = script.flatMap { Array(repeating: $0.1, count: $0.0) }
         // A Mac already near its limit can't burst much higher, so heavy loads keep their steps close together.
         let spread = load > 60 ? 0.15 : 1
-        var h = PowerHistory()
+        let h = ChartHistory()
+        let load0 = load * (1 + (multiples[0] - 1) * spread)
+        ChartSamples.fill(h, .powerSystem, seed: UInt64(s.percent) + 100, base: load0, amp: load0 * 0.4,
+                          end: load0, range: 0...200, until: now.addingTimeInterval(-600))
+        ChartSamples.fill(h, .powerBattery, seed: UInt64(s.percent) + 200, base: abs(s.batteryW), amp: abs(s.batteryW) * 0.2,
+                          end: abs(s.batteryW), range: 0...200, until: now.addingTimeInterval(-600))
         var previous = load * (1 + (multiples[0] - 1) * spread)
         for (i, multiple) in multiples.enumerated() {
             let offset = Double(i * 10 - 600)
             let date = now.addingTimeInterval(offset)
-            guard offset < 0 else { h.add(s, at: date); break }
+            guard offset < 0 else { h.recordPower(s, at: date); break }
             let level = load * (1 + (multiple - 1) * spread) * (1 + rng.uniform(-0.025...0.025))
             let onAC = s.onAC && offset >= (pluggedInAt ?? -.infinity)
             let batteryW: Double
@@ -80,7 +86,8 @@ import SwiftUI
             p.onAC = onAC
             p.systemLoadW = level
             p.amperage_mA = Int((batteryW / volts * 1000).rounded())
-            h.add(p, at: date)
+            // Readings every two seconds, as the menu bar takes them at the default refresh.
+            for k in 0..<5 { h.recordPower(p, at: date.addingTimeInterval(Double(2 * k))) }
             previous = level
         }
         return h
@@ -93,7 +100,7 @@ import SwiftUI
         m.users = users
         m.usersLoaded = true
         m.fans = fans
-        m.powerHistory = powerHistory(sample.snapshot, now: at)
+        m.powerCharts = powerHistory(sample.snapshot)
         return m
     }
 

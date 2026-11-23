@@ -9,6 +9,8 @@ import SwiftUI
     public let powerSource: PowerSourceMonitor
     public let slots: MenuBarSlots
     public let panels = PanelPresence()
+    /// Every panel chart's recorded history.
+    public let charts = ChartHistory()
     public var energyMode: (any EnergyModeService)?
     public var settingsView: AnyView = AnyView(Text("Boost Gauge").padding())
     public var onLaunch: (() -> Void)?

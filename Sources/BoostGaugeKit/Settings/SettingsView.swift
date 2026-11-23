@@ -133,6 +133,14 @@ import SwiftUI
         if let item = item(id) { ctx.panels.closed(item) }
     }
 
+    /// Holds the item's panel open and ticks it while nothing else does, until the task is cancelled (the page
+    /// changes, the preview goes, or the window closes).
+    func runPreview(_ id: ItemID) async {
+        previewOpened(id)
+        defer { previewClosed(id) }
+        await samplePreview(id)
+    }
+
     /// Ticks the previewed item at the refresh rate while nothing else does, for as long as its page is on screen.
     func samplePreview(_ id: ItemID) async {
         while !Task.isCancelled {
