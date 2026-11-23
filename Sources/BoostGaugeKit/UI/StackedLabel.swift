@@ -104,7 +104,6 @@ public struct StackedLabel: View {
             // Keeps the point of air that `width(_:)` adds on the left.
             .padding(.leading, alignment == .leading ? 1 : 0)
             .frame(maxWidth: .infinity, alignment: Alignment(horizontal: horizontal, vertical: .center))
-            .offset(y: style.verticalNudge)
         case let .pair(top, bottom):
             VStack(alignment: .leading, spacing: 0) {
                 Text(top)
@@ -138,7 +137,6 @@ public struct StackedLabel: View {
         var captionOpacity: Double { large ? 0.8 : 0.7 }
         // The big value's line box has more air than its glyphs need; overlapping it keeps both lines inside 22 pt.
         var lineSpacing: CGFloat { large ? -2.5 : 0 }
-        var verticalNudge: CGFloat { 0 }
 
         var captionFont: Font { .system(size: captionSize, weight: .medium) }
         var valueFont: Font { .system(size: valueSize, weight: valueWeight).monospacedDigit() }
