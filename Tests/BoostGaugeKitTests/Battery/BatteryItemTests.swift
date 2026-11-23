@@ -57,7 +57,8 @@ struct BatteryItemTests {
         let ctx = AppContext(settings: AppSettings(defaults: suite.defaults), powerSource: PowerSourceMonitor(initial: .adapter))
         let item = BatteryItem(ctx, historyURL: TempHistory().url, recordsHistory: false)
         let names = await item.renderVariants().map(\.name)
-        #expect(names.starts(with: ["live", "charging-34", "draining-on-ac-31", "charged-100", "on-battery-8", "on-hold-80"]))
+        #expect(names.starts(with: ["live", "charging-34", "charging-34-1h", "charging-34-24h", "draining-on-ac-31", "charged-100",
+                                    "on-battery-8", "on-hold-80", "charging-34-10d"]))
         let states = BatterySamples.all.map { ChargeState.classify($0.snapshot) }
         #expect(states == [.charging(114), .drainingOnAC, .charged, .onBattery(23), .onHold])
     }

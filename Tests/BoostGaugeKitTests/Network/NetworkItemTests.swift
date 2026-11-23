@@ -22,7 +22,7 @@ struct NetworkItemTests {
     @Test func secondTickGivesRateAndChartPoint() {
         let suite = TestDefaults()
         var bytes: UInt64 = 0
-        let (_, item) = make(suite) { bytes += 4_000; return ["en0": IfCounters(ibytes: bytes * 3, obytes: bytes)] }
+        let (ctx, item) = make(suite) { bytes += 4_000; return ["en0": IfCounters(ibytes: bytes * 3, obytes: bytes)] }
         let t0 = Date(timeIntervalSince1970: 1_000)
         item.tick(now: t0)
         #expect(item.rate == nil)
@@ -31,8 +31,9 @@ struct NetworkItemTests {
         #expect(item.rate?.up == 2_000)
         #expect(item.rate?.down == 6_000)
         #expect(item.labelLines == ("↑ 2K", "↓ 6K"))
-        #expect(item.up.points.count == 1)
-        #expect(item.down.points.count == 1)
+        let now = t0.addingTimeInterval(2)
+        #expect(ctx.charts(.networkUp).points(.tenMinutes, now: now).map(\.avg) == [2_000])
+        #expect(ctx.charts(.networkDown).points(.tenMinutes, now: now).map(\.avg) == [6_000])
     }
 
     /// Hidden for a while (or asleep): the first tick back must not average over the whole gap.

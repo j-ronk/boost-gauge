@@ -58,6 +58,21 @@ struct SettingsPreviewTests {
         #expect(!ctx.panels.isOpen(.cpu))
     }
 
+    /// The preview holds the panel open only while its task runs: closing the window cancels it, and the panel closes
+    /// with it rather than ticking on behind a closed window.
+    @Test func runningPreviewHoldsThePanelUntilCancelled() async throws {
+        let (model, ctx, items) = makeModel()
+        let task = Task { await model.runPreview(.gpu) }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(ctx.panels.isOpen(.gpu))
+        #expect(items[.gpu]!.ticks == 1)
+        task.cancel()
+        await task.value
+        #expect(!ctx.panels.isOpen(.gpu))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(items[.gpu]!.ticks == 1)
+    }
+
     @Test func tallPanelShowsItsTopAtFullSizeAndShortPanelShowsWhole() {
         typealias Top = PanelTop<EmptyView>
         #expect(Top.visibleHeight(natural: 1000) == Top.maxHeight)

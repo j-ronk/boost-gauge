@@ -43,20 +43,23 @@ struct DiskItemTests {
         #expect(reads.value == 2)
     }
 
-    @Test func activityNeedsTwoSamplesAndResetsOnClose() {
+    @Test func activityNeedsTwoSamplesAndRebaselinesAfterAGap() {
         let suite = TestDefaults()
         var read: UInt64 = 0
-        let (_, item) = make(suite, capacity: { Self.sample }, totals: { read += 4_000_000; return (read, read / 2) })
+        let (ctx, item) = make(suite, capacity: { Self.sample }, totals: { read += 4_000_000; return (read, read / 2) })
         let t0 = Date(timeIntervalSince1970: 1_000)
         item.sampleActivity(now: t0)
         #expect(item.activity == nil)
         item.sampleActivity(now: t0.addingTimeInterval(2))
         #expect(item.activity?.read == 2_000_000)
         #expect(item.activity?.write == 1_000_000)
-        item.panelDidClose()
-        #expect(item.activity == nil)
+        #expect(ctx.charts(.diskRead).points(.tenMinutes, now: t0.addingTimeInterval(2)).map(\.avg) == [2_000_000])
+        // Hidden or asleep for ten minutes: no rate averaged over the gap, and nothing recorded for it.
         item.sampleActivity(now: t0.addingTimeInterval(600))
         #expect(item.activity == nil)
+        #expect(ctx.charts(.diskWrite).points(.hour, now: t0.addingTimeInterval(600)).count == 1)
+        item.sampleActivity(now: t0.addingTimeInterval(602))
+        #expect(item.activity?.read == 2_000_000)
     }
 }
 

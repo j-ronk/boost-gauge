@@ -21,9 +21,10 @@ struct PanelSectionTests {
             let titles = PanelSectionID.sections(of: id).map(\.title)
             #expect(Set(titles).count == titles.count, "\(id): \(titles)")
         }
-        #expect(PanelSectionID.sections(of: .cpu).map(\.title) == ["Cores Chart", "Details", "Top Processes"])
+        #expect(PanelSectionID.sections(of: .cpu).map(\.title) == ["Chart", "Cores Chart", "Details", "Top Processes"])
         #expect(PanelSectionID.sections(of: .battery).map(\.title)
-            == ["Energy Mode", "History", "Power", "Power Chart", "Health", "Using Energy"])
+            == ["Energy Mode", "Charge", "Power Chart", "Details", "Health", "Using Energy"])
+        #expect(PanelSectionID.sections(of: .power).map(\.title) == ["Chart", "Details"])
     }
 
     @Test func freshSettingsShowEverySection() {
@@ -79,5 +80,36 @@ struct PanelSectionTests {
 
         settings.setSectionShown(.gpuDetails, false)
         #expect(observed.value == 1)
+    }
+
+    /// Every item panel leads with its chart, so each has a "Chart" toggle (Battery's is "Power Chart", beside Charge).
+    @Test func everyChartIsAPanelSection() {
+        for id in [ItemID.cpu, .gpu, .memory, .network, .disk, .temps, .power] {
+            #expect(PanelSectionID.sections(of: id).first?.title == "Chart", "\(id)")
+        }
+        #expect(PanelSectionID.sections(of: .memory).map(\.title) == ["Chart", "Details", "Top Apps"])
+        #expect(PanelSectionID.sections(of: .network).map(\.title) == ["Chart", "Connection"])
+        #expect(PanelSectionID.sections(of: .disk).map(\.title) == ["Chart", "Storage"])
+    }
+
+    /// The charts that existed before keep their stored IDs, so a chart someone hid stays hidden after the update.
+    @Test func existingChartTogglesCarryOver() {
+        let kept: [(PanelSectionID, String)] = [(.gpuChart, "gpu.chart"), (.networkChart, "network.chart"),
+                                                (.powerChart, "power.chart"), (.batteryPowerChart, "battery.powerChart"),
+                                                (.batteryHistory, "battery.history"), (.memoryUsage, "memory.usage"),
+                                                (.batteryPower, "battery.power"), (.powerPower, "power.power")]
+        let suite = TestDefaults()
+        for (_, raw) in kept { suite.defaults.set(false, forKey: "panel.\(raw).shown") }
+        // Sections that are gone leave a harmless key behind.
+        suite.defaults.set(false, forKey: "panel.network.speed.shown")
+        suite.defaults.set(false, forKey: "panel.disk.activity.shown")
+        let settings = AppSettings(defaults: suite.reopen())
+        for (section, raw) in kept {
+            #expect(section.rawValue == raw)
+            #expect(!settings.isSectionShown(section), "\(raw)")
+        }
+        for section in [PanelSectionID.cpuChart, .memoryChart, .tempsChart, .diskChart, .networkConnection, .diskStorage] {
+            #expect(settings.isSectionShown(section), "\(section)")
+        }
     }
 }

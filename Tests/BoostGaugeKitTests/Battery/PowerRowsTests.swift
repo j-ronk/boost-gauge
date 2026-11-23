@@ -100,25 +100,19 @@ struct FanRowsTests {
     }
 }
 
-struct PowerChartTests {
-    @Test func floorKeepsIdleFromLookingNoisy() {
-        #expect(PowerChart.yMax([]) == 20)
-        #expect(PowerChart.yMax([3, 5]) == 20)
-        #expect(abs(PowerChart.yMax([100]) - 110) < 0.001)
-    }
-
-    @Test func historyFedFromSnapshotsAndTrimmedToTenMinutes() {
-        var h = PowerHistory()
+@MainActor
+struct PowerRecordingTests {
+    @Test func recordsSystemAndBatteryMagnitude() {
+        let h = ChartHistory()
         let s = BatteryFixtures.snapshot("draining-on-ac")
-        let t0 = Date(timeIntervalSinceReferenceDate: 0)
-        h.add(s, at: t0)
-        h.add(s, at: t0.addingTimeInterval(700))
-        #expect(h.system.points.count == 1)
-        #expect(h.battery.points.count == 1)
-        #expect(h.system.points[0].value == s.systemLoadW)
+        let t0 = Date(timeIntervalSinceReferenceDate: 1_000)
+        h.recordPower(s, at: t0)
+        #expect(h(.powerSystem).points(.tenMinutes, now: t0).map { Double($0.avg) } == [s.systemLoadW.map { Double(Float($0)) }!])
+        #expect(h(.powerBattery).points(.tenMinutes, now: t0).map(\.avg) == [Float(abs(s.batteryW))])
         var none = s
         none.systemLoadW = nil
-        h.add(none, at: t0.addingTimeInterval(710))
-        #expect(h.system.points.count == 1)
+        h.recordPower(none, at: t0.addingTimeInterval(10))
+        #expect(h(.powerSystem).points(.tenMinutes, now: t0.addingTimeInterval(10)).count == 1)
+        #expect(h(.powerBattery).points(.tenMinutes, now: t0.addingTimeInterval(10)).count == 1)
     }
 }

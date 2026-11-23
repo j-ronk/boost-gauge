@@ -102,7 +102,7 @@ struct TempCatalogTests {
             ("PMU tdev1", 42.9), ("PMU tcal", 51.9), ("NAND CH0 temp", 31),
         ], skipSSD: false)
         #expect(rows.map(\.group) == [.ssd, .battery, .powerManager, .powerManager])
-        #expect(rows.map(\.sensor) == [TempSensor("SSD", 31), TempSensor("Gas gauge", 32.5),
+        #expect(rows.map(\.sensor) == [TempSensor("SSD", 31), TempSensor("Gas gauge", 32.5, inAverage: false),
                                        TempSensor("Die sensor 1", 44.9), TempSensor("Die sensor 2", 44.6)])
         #expect(!TempCatalog.hidSensors([("NAND CH0 temp", 31)], skipSSD: true).contains { $0.group == .ssd })
     }
@@ -119,11 +119,23 @@ struct TempCatalogTests {
         #expect(TempCatalog.isValid(126.9) && !TempCatalog.isValid(127) && !TempCatalog.isValid(0))
     }
 
+    /// The menu bar's battery figure comes from the battery's own SMC sensors; the gas gauge chip runs warmer, so it's
+    /// listed but left out of the panel's average, and the two agree.
+    @Test func gasGaugeIsListedButNotAveraged() {
+        let battery = TempGroupReading(.battery, [TempSensor("Battery 1", 34), TempSensor("Battery 2", 36),
+                                                  TempSensor("Gas gauge", 41, inAverage: false)])
+        #expect(battery.average == 35)
+        #expect(battery.hottest?.name == "Gas gauge")
+        #expect(TempGroupReading(.battery, [TempSensor("Gas gauge", 41, inAverage: false)]).average == 41)
+        let s = SensorSummary.summarize([("TB1T", 34), ("TB2T", 36)])
+        #expect(s.battery == battery.average)
+    }
+
     @Test func everyGroupHasItsOwnTempsSection() {
         let sections = TempGroup.allCases.map(\.section)
         #expect(Set(sections).count == TempGroup.allCases.count)
         #expect(sections.allSatisfy { $0.item == .temps })
         #expect(PanelSectionID.sections(of: .temps).map(\.title)
-            == ["CPU", "GPU", "Memory", "SSD", "Battery", "Power Manager", "Airflow", "Wi-Fi", "Fans"])
+            == ["Chart", "CPU", "GPU", "Memory", "SSD", "Battery", "Power Manager", "Airflow", "Wi-Fi", "Fans"])
     }
 }

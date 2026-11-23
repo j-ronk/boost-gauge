@@ -16,8 +16,10 @@ struct BatterySamplesTests {
         for s in BatterySamples.all {
             #expect(BatterySamples.history(for: s, now: now) == BatterySamples.history(for: s, now: now))
             let a = BatterySamples.powerHistory(s.snapshot, now: now), b = BatterySamples.powerHistory(s.snapshot, now: now)
-            #expect(a.system.points.map(\.value) == b.system.points.map(\.value))
-            #expect(a.battery.points.map(\.value) == b.battery.points.map(\.value))
+            for range in ChartRange.allCases {
+                #expect(a(.powerSystem).points(range, now: now) == b(.powerSystem).points(range, now: now))
+                #expect(a(.powerBattery).points(range, now: now) == b(.powerBattery).points(range, now: now))
+            }
         }
     }
 
@@ -72,41 +74,58 @@ struct BatterySamplesTests {
         #expect(flatHours(at: 100) > 1)
     }
 
+    /// The scripted last ten minutes: a level every ten seconds, read every two.
+    private func tenMinutes(_ s: BatterySnapshot) -> (system: [ChartPoint], battery: [ChartPoint]) {
+        let h = BatterySamples.powerHistory(s, now: now)
+        return (h(.powerSystem).points(.tenMinutes, now: now), h(.powerBattery).points(.tenMinutes, now: now))
+    }
+
+    private func age(_ p: ChartPoint) -> TimeInterval { now.timeIntervalSinceReferenceDate - p.t }
+
     @Test func powerHistoryEndsOnTheSnapshotReading() {
         for s in BatterySamples.all {
-            let p = BatterySamples.powerHistory(s.snapshot, now: now)
-            #expect(p.system.points.last?.value == s.snapshot.systemLoadW)
-            #expect(abs((p.battery.points.last?.value ?? -1) - abs(s.snapshot.batteryW)) < 0.01, "\(s.name)")
-            #expect(p.system.points.count == 61)
+            let p = tenMinutes(s.snapshot)
+            #expect(p.system.last.map { Double($0.avg) } == s.snapshot.systemLoadW.map { Double(Float($0)) })
+            #expect(abs(Double(p.battery.last?.avg ?? -1) - abs(s.snapshot.batteryW)) < 0.01, "\(s.name)")
+            #expect(p.system.count == 300)
         }
+    }
+
+    /// A whole day behind the scripted ten minutes, with the overnight gap, so every range has a line.
+    @Test func powerHistoryCoversTheDay() {
+        let h = BatterySamples.powerHistory(sample("charging-34").snapshot, now: now)
+        let day = h(.powerSystem).points(.day, now: now)
+        #expect(day.count > 150)
+        let gaps = zip(day, day.dropFirst()).filter { $1.t - $0.t > 3600 }
+        #expect(gaps.count == 1)
+        #expect(h(.powerBattery).points(.hour, now: now).count > 200)
     }
 
     /// Unplugged, the battery supplies the whole system, so the two lines sit on top of each other.
     @Test func onBatteryTheLinesTrackEachOther() {
-        let p = BatterySamples.powerHistory(sample("on-battery-8").snapshot, now: now)
-        for (sys, bat) in zip(p.system.points, p.battery.points) {
-            #expect(abs(sys.value - bat.value) <= max(1.5, sys.value * 0.3))
+        let p = tenMinutes(sample("on-battery-8").snapshot)
+        for (sys, bat) in zip(p.system, p.battery) {
+            #expect(abs(sys.avg - bat.avg) <= max(1.5, sys.avg * 0.3))
         }
     }
 
     @Test func chargingSampleSwitchesFromTrackingToChargingAtPlugIn() {
         let s = sample("charging-34").snapshot
-        let p = BatterySamples.powerHistory(s, now: now)
-        let pairs = zip(p.system.points, p.battery.points)
-        for (sys, bat) in pairs where now.timeIntervalSince(sys.date) > 300 {
-            #expect(abs(sys.value - bat.value) <= max(1.5, sys.value * 0.3))
+        let p = tenMinutes(s)
+        let pairs = zip(p.system, p.battery)
+        for (sys, bat) in pairs where age(sys) > 301 {
+            #expect(abs(sys.avg - bat.avg) <= max(1.5, sys.avg * 0.3))
         }
-        for (_, bat) in pairs where now.timeIntervalSince(bat.date) < 300 {
-            #expect(abs(bat.value - s.batteryW) < 2)
+        for (_, bat) in pairs where age(bat) < 299 {
+            #expect(abs(Double(bat.avg) - s.batteryW) < 2)
         }
     }
 
     /// Real load holds a level, then jumps: a sine wave changes every sample.
     @Test func powerIsStepLikeNotAWave() {
-        let p = BatterySamples.powerHistory(sample("charging-34").snapshot, now: now)
-        let v = p.system.points.map(\.value)
+        let v = tenMinutes(sample("charging-34").snapshot).system.map { Double($0.avg) }
         let steps = zip(v, v.dropFirst()).map { abs($1 - $0) / max($0, 1) }
-        #expect(steps.filter { $0 < 0.06 }.count > 40, "mostly flat stretches")
+        #expect(steps.filter { $0 < 0.06 }.count > 200, "mostly flat stretches")
         #expect(steps.contains { $0 > 0.8 }, "at least one sudden jump")
     }
 

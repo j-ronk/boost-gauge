@@ -32,22 +32,23 @@ struct GPUReaderTests {
 
 @MainActor
 struct GPUItemTests {
-    @Test func reshowClearsHistory() async throws {
+    @Test func hidingClearsTheReadingButKeepsTheChart() async throws {
         let suite = TestDefaults()
         let ctx = AppContext(settings: AppSettings(defaults: suite.defaults), powerSource: PowerSourceMonitor(initial: .adapter))
         ctx.settings.setShown(.gpu, true)
         var reads = 0
         let item = GPUItem(ctx, read: { reads += 1; return 30 })
-        item.tick(now: .now)
+        let now = Date.now
+        item.tick(now: now)
         #expect(item.model.utilization == 30)
-        #expect(item.model.history.points.count == 1)
+        #expect(ctx.charts(.gpu).points(.tenMinutes, now: now).map(\.avg) == [30])
         #expect(item.model.labelValue == "30%")
 
         ctx.settings.setShown(.gpu, false)
         try await Task.sleep(for: .milliseconds(50))
-        // A line drawn across the hidden span would claim readings nobody took.
-        #expect(item.model.history.points.isEmpty)
+        // The hidden span is a gap in the chart: nothing is recorded, and what came before stays.
         #expect(item.model.utilization == nil)
+        #expect(ctx.charts(.gpu).points(.tenMinutes, now: now).count == 1)
         #expect(reads == 1)
     }
 
@@ -57,15 +58,7 @@ struct GPUItemTests {
         let item = GPUItem(ctx, read: { nil })
         item.tick(now: .now)
         #expect(item.model.labelValue == "—")
-        #expect(item.model.history.points.isEmpty)
-    }
-
-    @Test func historySplitsAtGaps() {
-        let t0 = Date(timeIntervalSince1970: 0)
-        let points = [(t0, 1.0), (t0 + 2, 2.0), (t0 + 4, 3.0), (t0 + 200, 4.0), (t0 + 202, 5.0)]
-            .map { (date: $0.0, value: $0.1) }
-        let segments = GPUHistory.segments(points, maxGap: 10)
-        #expect(segments.map(\.count) == [3, 2])
+        #expect(ctx.charts(.gpu).points(.tenMinutes, now: .now).isEmpty)
     }
 }
 
